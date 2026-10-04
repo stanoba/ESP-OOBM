@@ -1,0 +1,14 @@
+# PlatformIO
+.pio
+.pioenvs
+.piolibdeps
+
+# VSCode
+.vscode
+.idea
+
+# Compiled binaries & logs
+*.bin
+*.elf
+*.o
+*.a
