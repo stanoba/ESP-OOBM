@@ -8,9 +8,10 @@ uint16_t g_activeTelnetClients = 0;
 TelnetServer::TelnetServer() 
     : _enabled(true),
       _port(TELNET_PORT),
-      _authRequired(false),
+      _authRequired(DEFAULT_TELNET_AUTH),
       _server(TELNET_PORT) {
-    _password[0] = '\0';
+    strncpy(_password, DEFAULT_TELNET_PASS, sizeof(_password) - 1);
+    _password[sizeof(_password) - 1] = '\0';
     for (size_t i = 0; i < MAX_TELNET_CLIENTS; i++) {
         _sessions[i].authState = TELNET_AUTH_NONE;
         _sessions[i].failedAttempts = 0;
@@ -22,9 +23,9 @@ TelnetServer::TelnetServer()
 void TelnetServer::begin(Preferences &prefs) {
     _enabled = prefs.getBool(NVS_KEY_TELNET_EN, true);
     _port = prefs.getUShort(NVS_KEY_TELNET_PORT, TELNET_PORT);
-    _authRequired = prefs.getBool(NVS_KEY_TELNET_AUTH, false);
+    _authRequired = prefs.getBool(NVS_KEY_TELNET_AUTH, DEFAULT_TELNET_AUTH);
     
-    String pass = prefs.getString(NVS_KEY_TELNET_PASS, "");
+    String pass = prefs.getString(NVS_KEY_TELNET_PASS, DEFAULT_TELNET_PASS);
     strncpy(_password, pass.c_str(), sizeof(_password) - 1);
     _password[sizeof(_password) - 1] = '\0';
 

@@ -42,6 +42,7 @@ html:not(.light) .brand-sub{fill:#34d399!important;}
 .nav-link.active{background:var(--navy);color:#ffffff;border-color:var(--navy);box-shadow:0 2px 6px rgba(2,132,199,0.3);}
 .badge-clock{font-family:Consolas,monospace;font-size:0.82rem;padding:4px 9px;border-radius:6px;background:var(--hover);border:1px solid var(--border);color:var(--muted);display:flex;align-items:center;gap:6px;}
 
+.nav-actions{display:flex;align-items:center;gap:10px;flex-shrink:0;}
 .theme-switch{display:inline-flex;align-items:center;background:var(--hover);border:1px solid var(--border);border-radius:20px;padding:2px;gap:2px;}
 .theme-btn{background:transparent;border:none;border-radius:16px;padding:4px 7px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer;transition:all 0.15s;}
 .theme-btn:hover{color:var(--text);}
@@ -50,19 +51,12 @@ html:not(.light) .brand-sub{fill:#34d399!important;}
 @media(min-width:961px){
   .nav-links{position:absolute;left:50%;transform:translateX(-50%);}
 }
-@media(min-width:1250px){
-  .theme-switch{position:absolute;right:24px;top:50%;transform:translateY(-50%);}
-}
-@media(max-width:1249px){
-  .nav-inner{flex-wrap:wrap;gap:12px;}
-  .theme-switch{margin-left:auto;}
-}
 @media(max-width:960px){
   .header-wrap{position:static;}
   .navbar{padding:10px 0;}
   .nav-inner{flex-direction:column;align-items:center;gap:10px;}
   .nav-links{position:static;transform:none;}
-  .theme-switch{margin-left:0;}
+  .nav-actions{margin-top:4px;}
 }
 
 .container{max-width:1200px;margin:22px auto;padding:0 18px;}
@@ -105,7 +99,9 @@ html.light .btn-outline:hover{background:#e2e8f0;border-color:var(--navy);color:
 .form-control:focus{border-color:var(--navy);}
 .switch-label{display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;font-size:0.88rem;font-weight:500;}
 
-.term-container{background:#000000;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:Consolas,Courier,monospace;font-size:0.92rem;color:#e2e8f0;height:calc(100vh - 280px);min-height:360px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;outline:none;box-shadow:inset 0 2px 8px rgba(0,0,0,0.6);}
+.term-container{background:#000000;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:Consolas,Courier,monospace;font-size:0.92rem;color:#e2e8f0;height:calc(100vh - 280px);min-height:360px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;outline:none;box-shadow:inset 0 2px 8px rgba(0,0,0,0.6);line-height:1.35;}
+.term-cursor{display:inline-block;min-width:8px;background:#38bdf8;color:#000000!important;border-radius:1px;animation:term-blink 1s steps(2,start) infinite;}
+@keyframes term-blink{0%,100%{opacity:1;}50%{opacity:0.15;}}
 .term-toolbar{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;padding:8px;background:var(--card);border:1px solid var(--border);border-radius:8px;}
 .term-key{padding:5px 9px;border-radius:4px;background:var(--hover);border:1px solid var(--border);color:var(--text);font-family:monospace;font-size:0.80rem;font-weight:600;cursor:pointer;user-select:none;transition:all 0.1s;}
 .term-key:hover{background:#334155;}
@@ -188,32 +184,69 @@ WebPortal::WebPortal(WebServer &server, DNSServer &dnsServer, Preferences &prefs
     : _server(server),
       _dnsServer(dnsServer),
       _prefs(prefs),
-      _authRequired(false),
+      _authRequired(DEFAULT_AUTH_ENABLED),
+      _sessionToken(""),
       _isApMode(false),
       _captiveEnabled(true) {
-    strncpy(_authUser, "admin", sizeof(_authUser) - 1);
-    strncpy(_authPass, "admin", sizeof(_authPass) - 1);
+    strncpy(_authUser, DEFAULT_AUTH_USER, sizeof(_authUser) - 1);
+    strncpy(_authPass, DEFAULT_AUTH_PASS, sizeof(_authPass) - 1);
+    updateSessionToken();
+}
+
+void WebPortal::updateSessionToken() {
+    char buf[128];
+    snprintf(buf, sizeof(buf), "%s:%s:esp-oobm-dongle-token", _authUser, _authPass);
+    uint32_t hash1 = 5381, hash2 = 0;
+    for (size_t i = 0; buf[i]; i++) {
+        hash1 = ((hash1 << 5) + hash1) + (uint8_t)buf[i];
+        hash2 = (hash2 * 31) + (uint8_t)buf[i];
+    }
+    char hexToken[33];
+    snprintf(hexToken, sizeof(hexToken), "%08x%08x%08x%08x", hash1, hash2, hash1 ^ 0x5a5a5a5a, hash2 ^ 0xa5a5a5a5);
+    _sessionToken = String(hexToken);
 }
 
 void WebPortal::setAuthCredentials(bool enabled, const char *user, const char *pass) {
     _authRequired = enabled;
     if (user) strncpy(_authUser, user, sizeof(_authUser) - 1);
     if (pass) strncpy(_authPass, pass, sizeof(_authPass) - 1);
+    updateSessionToken();
+}
+
+bool WebPortal::isAuthenticated() {
+    if (!_authRequired) return true;
+
+    if (_server.hasHeader("Cookie")) {
+        String cookie = _server.header("Cookie");
+        if (cookie.indexOf("oobm_session=" + _sessionToken) != -1) {
+            return true;
+        }
+    }
+
+    if (_server.authenticate(_authUser, _authPass)) {
+        return true;
+    }
+
+    return false;
 }
 
 bool WebPortal::checkAuth() {
-    if (!_authRequired) return true;
-    if (_server.authenticate(_authUser, _authPass)) return true;
-    _server.requestAuthentication(BASIC_AUTH, "ESP-OOBM");
+    if (isAuthenticated()) return true;
+
+    handleLoginPage();
     return false;
 }
 
 void WebPortal::begin() {
-    _authRequired = _prefs.getBool(NVS_KEY_AUTH_EN, false);
-    String u = _prefs.getString(NVS_KEY_AUTH_USER, "admin");
-    String p = _prefs.getString(NVS_KEY_AUTH_PASS, "admin");
+    const char *headerKeys[] = {"Cookie", "Authorization"};
+    _server.collectHeaders(headerKeys, 2);
+
+    _authRequired = _prefs.getBool(NVS_KEY_AUTH_EN, DEFAULT_AUTH_ENABLED);
+    String u = _prefs.getString(NVS_KEY_AUTH_USER, DEFAULT_AUTH_USER);
+    String p = _prefs.getString(NVS_KEY_AUTH_PASS, DEFAULT_AUTH_PASS);
     strncpy(_authUser, u.c_str(), sizeof(_authUser) - 1);
     strncpy(_authPass, p.c_str(), sizeof(_authPass) - 1);
+    updateSessionToken();
 
     _isApMode = (WiFi.getMode() & WIFI_MODE_AP);
     _captiveEnabled = _prefs.getBool(NVS_KEY_AP_CAPTIVE, true);
@@ -233,6 +266,8 @@ void WebPortal::begin() {
     _server.on("/metrics", HTTP_GET, [this]() { handleMetrics(); });
     _server.on("/sync_ntp", HTTP_GET, [this]() { handleSyncNtp(); });
     _server.on("/reset_wifi", HTTP_GET, [this]() { handleResetWifi(); });
+    _server.on("/login", HTTP_GET, [this]() { handleLoginPage(); });
+    _server.on("/logout", HTTP_GET, [this]() { handleLogout(); });
 
     // Favicon Routes
     _server.on("/favicon.svg", HTTP_GET, [this]() {
@@ -243,6 +278,7 @@ void WebPortal::begin() {
     });
 
     // AJAX API Routes
+    _server.on("/api/login", HTTP_POST, [this]() { handleApiLogin(); });
     _server.on("/api/status", HTTP_GET, [this]() { handleApiStatus(); });
     _server.on("/api/scan", HTTP_GET, [this]() { handleApiScan(); });
     _server.on("/api/logs", HTTP_GET, [this]() { handleApiLogs(); });
@@ -253,11 +289,14 @@ void WebPortal::begin() {
     _server.on("/api/factory_reset", HTTP_POST, [this]() { handleApiFactoryReset(); });
     _server.on("/api/platform", HTTP_POST, [this]() { handleApiPlatform(); });
 
-    // Captive Portal Probes
+    // Captive Portal Probes (Android, Apple iOS/macOS, Windows, Firefox)
     _server.on("/generate_204", HTTP_GET, [this]() { handleCaptivePortal(); });
+    _server.on("/gen_204", HTTP_GET, [this]() { handleCaptivePortal(); });
     _server.on("/hotspot-detect.html", HTTP_GET, [this]() { handleCaptivePortal(); });
+    _server.on("/canonical.html", HTTP_GET, [this]() { handleCaptivePortal(); });
     _server.on("/ncsi.txt", HTTP_GET, [this]() { handleCaptivePortal(); });
     _server.on("/connecttest.txt", HTTP_GET, [this]() { handleCaptivePortal(); });
+    _server.on("/success.txt", HTTP_GET, [this]() { handleCaptivePortal(); });
 
     _server.onNotFound([this]() { handleNotFound(); });
 
@@ -266,7 +305,7 @@ void WebPortal::begin() {
 }
 
 void WebPortal::loop() {
-    if (_isApMode && _captiveEnabled) {
+    if ((WiFi.getMode() & WIFI_MODE_AP) && _captiveEnabled) {
         _dnsServer.processNextRequest();
     }
     _server.handleClient();
@@ -317,9 +356,10 @@ void WebPortal::streamHeader(const char *activeTab, const char *title) {
     _server.sendContent_P(PSTR("\">Terminal</a>"
                                "<a href=\"/settings\" class=\"nav-link "));
     if (strcmp(activeTab, "settings") == 0) _server.sendContent_P(PSTR("active"));
-    _server.sendContent_P(PSTR("\">Settings</a></nav><div id=\"clock_badge\" class=\"badge-clock\">"));
+    _server.sendContent_P(PSTR("\">Settings</a></nav>"
+                               "<div class=\"nav-actions\"><div id=\"clock_badge\" class=\"badge-clock\">"));
     _server.sendContent(curTimeBuf);
-    _server.sendContent_P(PSTR("</div></div>"
+    _server.sendContent_P(PSTR("</div>"
                                "<div class=\"theme-switch\" role=\"group\" aria-label=\"Theme switcher\">"
                                "  <button id=\"themeBtnLight\" class=\"theme-btn\" onclick=\"setTheme('light')\" title=\"Light Theme\">"
                                "    <svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41\"/></svg>"
@@ -329,9 +369,15 @@ void WebPortal::streamHeader(const char *activeTab, const char *title) {
                                "  </button>"
                                "  <button id=\"themeBtnSystem\" class=\"theme-btn\" onclick=\"setTheme('system')\" title=\"System Theme\">"
                                "    <svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"3\" width=\"20\" height=\"14\" rx=\"2\"/><line x1=\"8\" y1=\"21\" x2=\"16\" y2=\"21\"/><line x1=\"12\" y1=\"17\" x2=\"12\" y2=\"21\"/></svg>"
-                               "  </button>"
-                               "</div>"
-                               "</div></div><div class=\"container\">"));
+                               "  </button>"));
+    if (_authRequired) {
+        _server.sendContent_P(PSTR(
+            "  <a href=\"/logout\" class=\"theme-btn\" title=\"Sign Out\" style=\"margin-left:4px;text-decoration:none;\">"
+            "    <svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4\"/><polyline points=\"16 17 21 12 16 7\"/><line x1=\"21\" y1=\"12\" x2=\"9\" y2=\"12\"/></svg>"
+            "  </a>"
+        ));
+    }
+    _server.sendContent_P(PSTR("</div></div></div></div></div><div class=\"container\">"));
 
     if (WiFi.status() != WL_CONNECTED) {
         _server.sendContent_P(PSTR(
@@ -558,7 +604,7 @@ void WebPortal::handleTerminal() {
     String curPlatform = _prefs.getString(NVS_KEY_CLI_PLATFORM, "mikrotik");
 
     String t = "";
-    t.reserve(5500);
+    t.reserve(16000);
 
     // Top Controls Bar (Status left, Keys middle, Clear/Reconnect right)
     t += "<div style=\"display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;\">\n";
@@ -606,9 +652,230 @@ void WebPortal::handleTerminal() {
     t += "  </div>\n";
     t += "</div>\n";
 
-    // Terminal JavaScript
+    // Terminal JavaScript & ANSI Emulator Engine
     t += "<script>\n";
-    t += "var ws, term = document.getElementById('terminal'), dot = document.getElementById('ws_status_dot'), stext = document.getElementById('ws_status_text');\n";
+    t += "var ANSI_COLORS=['#0f172a','#ef4444','#10b981','#f59e0b','#3b82f6','#a855f7','#06b6d4','#cbd5e1',"
+         "'#64748b','#f87171','#34d399','#fbbf24','#60a5fa','#c084fc','#22d3ee','#ffffff'];\n";
+    t += "function getAnsiColor(code){\n";
+    t += "  if(code>=0&&code<16) return ANSI_COLORS[code];\n";
+    t += "  if(code>=232&&code<=255){\n";
+    t += "    var v=Math.round((code-232)*10+8);\n";
+    t += "    var h=v.toString(16).padStart(2,'0');\n";
+    t += "    return '#'+h+h+h;\n";
+    t += "  }\n";
+    t += "  if(code>=16&&code<=231){\n";
+    t += "    var n=code-16,b=n%6,g=Math.floor(n/6)%6,r=Math.floor(n/36);\n";
+    t += "    var steps=[0,95,135,175,215,255];\n";
+    t += "    return 'rgb('+steps[r]+','+steps[g]+','+steps[b]+')';\n";
+    t += "  }\n";
+    t += "  return null;\n";
+    t += "}\n";
+    t += "function AnsiTerminal(el,maxLines){\n";
+    t += "  this.el=el;\n";
+    t += "  this.maxLines=maxLines||1500;\n";
+    t += "  this.lines=[[]];\n";
+    t += "  this.cursorRow=0;\n";
+    t += "  this.cursorCol=0;\n";
+    t += "  this.fg=null; this.bg=null; this.bold=false; this.underline=false; this.inverse=false;\n";
+    t += "  this.state=0;\n";
+    t += "  this.csiParamStr='';\n";
+    t += "  this.renderTimer=null;\n";
+    t += "}\n";
+    t += "AnsiTerminal.prototype.reset=function(){\n";
+    t += "  this.lines=[[]]; this.cursorRow=0; this.cursorCol=0;\n";
+    t += "  this.fg=null; this.bg=null; this.bold=false; this.underline=false; this.inverse=false;\n";
+    t += "  this.state=0; this.csiParamStr='';\n";
+    t += "  this.render();\n";
+    t += "};\n";
+    t += "AnsiTerminal.prototype.write=function(str){\n";
+    t += "  for(var i=0;i<str.length;i++){\n";
+    t += "    var ch=str.charAt(i),code=str.charCodeAt(i);\n";
+    t += "    if(this.state===0){\n";
+    t += "      if(code===27){ this.state=1; }\n";
+    t += "      else if(code===13){ this.cursorCol=0; }\n";
+    t += "      else if(code===10){\n";
+    t += "        this.cursorRow=this.lines.length-1;\n";
+    t += "        this.lines.push([]);\n";
+    t += "        this.cursorRow=this.lines.length-1;\n";
+    t += "        this.cursorCol=0;\n";
+    t += "        if(this.lines.length>this.maxLines){\n";
+    t += "          this.lines.shift();\n";
+    t += "          this.cursorRow=Math.max(0,this.lines.length-1);\n";
+    t += "        }\n";
+    t += "      }\n";
+    t += "      else if(code===8||code===127){ if(this.cursorCol>0) this.cursorCol--; }\n";
+    t += "      else if(code===9){\n";
+    t += "        var nextTab=(Math.floor(this.cursorCol/8)+1)*8;\n";
+    t += "        while(this.cursorCol<nextTab){ this.putChar(' '); }\n";
+    t += "      }\n";
+    t += "      else if(code>=32){ this.putChar(ch); }\n";
+    t += "    }else if(this.state===1){\n";
+    t += "      if(ch==='['){ this.state=2; this.csiParamStr=''; }\n";
+    t += "      else if(ch===']'){ this.state=3; }\n";
+    t += "      else if(ch==='('||ch===')'){ this.state=4; }\n";
+    t += "      else if(ch==='c'){ this.reset(); this.state=0; }\n";
+    t += "      else if(ch==='7'){ this.savedRow=this.cursorRow; this.savedCol=this.cursorCol; this.state=0; }\n";
+    t += "      else if(ch==='8'){ if(this.savedRow!==undefined) this.cursorRow=this.savedRow; if(this.savedCol!==undefined) this.cursorCol=this.savedCol; this.state=0; }\n";
+    t += "      else { this.state=0; }\n";
+    t += "    }else if(this.state===4){\n";
+    t += "      this.state=0;\n";
+    t += "    }else if(this.state===3){\n";
+    t += "      if(code===7){ this.state=0; }\n";
+    t += "      else if(code===27){ this.state=1; }\n";
+    t += "    }else if(this.state===2){\n";
+    t += "      if((this.csiParamStr===''||this.csiParamStr==='?')&&(ch==='?'||ch==='>'||ch==='=')){ this.csiParamStr+=ch; }\n";
+    t += "      else if((code>=48&&code<=57)||ch===';'||ch==='?'){ this.csiParamStr+=ch; }\n";
+    t += "      else { this.handleCsi(ch); this.state=0; }\n";
+    t += "    }\n";
+    t += "  }\n";
+    t += "  this.scheduleRender();\n";
+    t += "};\n";
+    t += "AnsiTerminal.prototype.putChar=function(ch){\n";
+    t += "  while(this.lines.length<=this.cursorRow){ this.lines.push([]); }\n";
+    t += "  var line=this.lines[this.cursorRow];\n";
+    t += "  while(line.length<this.cursorCol){\n";
+    t += "    line.push({ch:' ',fg:null,bg:null,bold:false,underline:false,inverse:false});\n";
+    t += "  }\n";
+    t += "  line[this.cursorCol]={ch:ch,fg:this.fg,bg:this.bg,bold:this.bold,underline:this.underline,inverse:this.inverse};\n";
+    t += "  this.cursorCol++;\n";
+    t += "};\n";
+    t += "AnsiTerminal.prototype.handleCsi=function(cmd){\n";
+    t += "  var cleanStr=this.csiParamStr.replace(/^[\\?\\>\\=]+/,'');\n";
+    t += "  var raw=cleanStr?cleanStr.split(';'):[];\n";
+    t += "  var p=raw.map(function(x){ return parseInt(x,10); });\n";
+    t += "  if(cmd==='m'){\n";
+    t += "    if(p.length===0) p=[0];\n";
+    t += "    for(var i=0;i<p.length;i++){\n";
+    t += "      var v=isNaN(p[i])?0:p[i];\n";
+    t += "      if(v===0){ this.fg=null; this.bg=null; this.bold=false; this.underline=false; this.inverse=false; }\n";
+    t += "      else if(v===1){ this.bold=true; }\n";
+    t += "      else if(v===4){ this.underline=true; }\n";
+    t += "      else if(v===7){ this.inverse=true; }\n";
+    t += "      else if(v===22){ this.bold=false; }\n";
+    t += "      else if(v===24){ this.underline=false; }\n";
+    t += "      else if(v===27){ this.inverse=false; }\n";
+    t += "      else if(v>=30&&v<=37){ this.fg=getAnsiColor(v-30); }\n";
+    t += "      else if(v===39){ this.fg=null; }\n";
+    t += "      else if(v>=40&&v<=47){ this.bg=getAnsiColor(v-40); }\n";
+    t += "      else if(v===49){ this.bg=null; }\n";
+    t += "      else if(v>=90&&v<=97){ this.fg=getAnsiColor(v-90+8); }\n";
+    t += "      else if(v>=100&&v<=107){ this.bg=getAnsiColor(v-100+8); }\n";
+    t += "      else if(v===38&&p[i+1]===5){ this.fg=getAnsiColor(p[i+2]); i+=2; }\n";
+    t += "      else if(v===48&&p[i+1]===5){ this.bg=getAnsiColor(p[i+2]); i+=2; }\n";
+    t += "      else if(v===38&&p[i+1]===2){ this.fg='rgb('+p[i+2]+','+p[i+3]+','+p[i+4]+')'; i+=4; }\n";
+    t += "      else if(v===48&&p[i+1]===2){ this.bg='rgb('+p[i+2]+','+p[i+3]+','+p[i+4]+')'; i+=4; }\n";
+    t += "    }\n";
+    t += "  }else if(cmd==='K'){\n";
+    t += "    var m=p[0]||0;\n";
+    t += "    while(this.lines.length<=this.cursorRow) this.lines.push([]);\n";
+    t += "    var line=this.lines[this.cursorRow];\n";
+    t += "    if(m===0){\n";
+    t += "      if(line.length>this.cursorCol) line.length=this.cursorCol;\n";
+    t += "    }else if(m===1){\n";
+    t += "      for(var c=0;c<=Math.min(this.cursorCol,line.length-1);c++){\n";
+    t += "        line[c]={ch:' ',fg:null,bg:null,bold:false,underline:false,inverse:false};\n";
+    t += "      }\n";
+    t += "    }else if(m===2){\n";
+    t += "      this.lines[this.cursorRow]=[];\n";
+    t += "      this.cursorCol=0;\n";
+    t += "    }\n";
+    t += "  }else if(cmd==='J'){\n";
+    t += "    var m=p[0]||0;\n";
+    t += "    if(m===2||m===3){\n";
+    t += "      this.lines.push([]);\n";
+    t += "      this.cursorRow=this.lines.length-1;\n";
+    t += "      this.cursorCol=0;\n";
+    t += "    }else if(m===0){\n";
+    t += "      while(this.lines.length<=this.cursorRow) this.lines.push([]);\n";
+    t += "      var cur=this.lines[this.cursorRow];\n";
+    t += "      if(cur&&cur.length>this.cursorCol) cur.length=this.cursorCol;\n";
+    t += "    }\n";
+    t += "  }else if(cmd==='A'){\n";
+    t += "    this.cursorRow=Math.max(0,this.cursorRow-(p[0]||1));\n";
+    t += "  }else if(cmd==='B'){\n";
+    t += "    this.cursorRow=Math.min(this.lines.length-1,this.cursorRow+(p[0]||1));\n";
+    t += "  }else if(cmd==='C'){\n";
+    t += "    this.cursorCol+=(p[0]||1);\n";
+    t += "  }else if(cmd==='D'){\n";
+    t += "    this.cursorCol=Math.max(0,this.cursorCol-(p[0]||1));\n";
+    t += "  }else if(cmd==='G'||cmd==='`'){\n";
+    t += "    this.cursorCol=Math.max(0,(p[0]||1)-1);\n";
+    t += "  }else if(cmd==='H'||cmd==='f'){\n";
+    t += "    var c=p[1];\n";
+    t += "    if(c!==undefined){\n";
+    t += "      this.cursorCol=Math.max(0,c-1);\n";
+    t += "    }else{\n";
+    t += "      this.cursorCol=0;\n";
+    t += "    }\n";
+    t += "  }else if(cmd==='c'){\n";
+    t += "    if(ws&&ws.readyState===1){\n";
+    t += "      ws.send(new TextEncoder().encode('\\x1b[?1;2c'));\n";
+    t += "    }\n";
+    t += "  }\n";
+    t += "};\n";
+    t += "AnsiTerminal.prototype.scheduleRender=function(){\n";
+    t += "  if(this.renderTimer) return;\n";
+    t += "  var self=this;\n";
+    t += "  this.renderTimer=requestAnimationFrame(function(){ self.renderTimer=null; self.render(); });\n";
+    t += "};\n";
+    t += "AnsiTerminal.prototype.render=function(){\n";
+    t += "  var html='';\n";
+    t += "  for(var r=0;r<this.lines.length;r++){\n";
+    t += "    var line=this.lines[r], isCur=(r===this.cursorRow);\n";
+    t += "    if(!line||line.length===0){\n";
+    t += "      html+=isCur?'<span class=\"term-cursor\">&nbsp;</span>\\n':'\\n';\n";
+    t += "      continue;\n";
+    t += "    }\n";
+    t += "    var curStyle=null, spanBuf='', maxCol=Math.max(line.length,isCur?(this.cursorCol+1):line.length);\n";
+    t += "    for(var c=0;c<maxCol;c++){\n";
+    t += "      if(isCur&&c===this.cursorCol){\n";
+    t += "        if(spanBuf){ html+=this.wrapSpan(spanBuf,curStyle); spanBuf=''; curStyle=null; }\n";
+    t += "        var curChar=(line[c]&&line[c].ch)?line[c].ch:'&nbsp;';\n";
+    t += "        html+='<span class=\"term-cursor\">'+(curChar===' '?'&nbsp;':this.escapeChar(curChar))+'</span>';\n";
+    t += "        continue;\n";
+    t += "      }\n";
+    t += "      var cell=line[c]||{ch:' ',fg:null,bg:null,bold:false,underline:false,inverse:false};\n";
+    t += "      var ch=cell.ch||' ';\n";
+    t += "      var fg=cell.fg, bg=cell.bg;\n";
+    t += "      if(cell.inverse){ var tmp=fg||'#cbd5e1'; fg=bg||'#000000'; bg=tmp; }\n";
+    t += "      var sk=(fg||'')+'|'+(bg||'')+'|'+(cell.bold?'1':'0')+'|'+(cell.underline?'1':'0');\n";
+    t += "      if(curStyle!==sk){\n";
+    t += "        if(spanBuf){ html+=this.wrapSpan(spanBuf,curStyle); spanBuf=''; }\n";
+    t += "        curStyle=sk;\n";
+    t += "      }\n";
+    t += "      spanBuf+=this.escapeChar(ch);\n";
+    t += "    }\n";
+    t += "    if(spanBuf) html+=this.wrapSpan(spanBuf,curStyle);\n";
+    t += "    if(isCur&&this.cursorCol>=maxCol) html+='<span class=\"term-cursor\">&nbsp;</span>';\n";
+    t += "    html+='\\n';\n";
+    t += "  }\n";
+    t += "  this.el.innerHTML=html;\n";
+    t += "  this.el.scrollTop=this.el.scrollHeight;\n";
+    t += "};\n";
+    t += "AnsiTerminal.prototype.escapeChar=function(c){\n";
+    t += "  if(c==='&') return '&amp;'; if(c==='<') return '&lt;'; if(c==='>') return '&gt;'; if(c==='\"') return '&quot;'; return c;\n";
+    t += "};\n";
+    t += "AnsiTerminal.prototype.wrapSpan=function(text,sk){\n";
+    t += "  if(!sk) return text;\n";
+    t += "  var p=sk.split('|'), fg=p[0], bg=p[1], bold=p[2]==='1', und=p[3]==='1';\n";
+    t += "  if(!fg&&!bg&&!bold&&!und) return text;\n";
+    t += "  var s='';\n";
+    t += "  if(fg) s+='color:'+fg+';';\n";
+    t += "  if(bg) s+='background-color:'+bg+';';\n";
+    t += "  if(bold) s+='font-weight:700;';\n";
+    t += "  if(und) s+='text-decoration:underline;';\n";
+    t += "  return '<span style=\"'+s+'\">'+text+'</span>';\n";
+    t += "};\n";
+    t += "\n";
+    t += "var ws, termEl=document.getElementById('terminal'), dot=document.getElementById('ws_status_dot'), stext=document.getElementById('ws_status_text');\n";
+    t += "var emulator = new AnsiTerminal(termEl, 1200);\n";
+    t += "\n";
+    t += "// Restore session history from sessionStorage\n";
+    t += "try{\n";
+    t += "  var savedRaw = sessionStorage.getItem('oobm_term_raw') || '';\n";
+    t += "  if(savedRaw.length > 0) emulator.write(savedRaw);\n";
+    t += "}catch(e){}\n";
+    t += "\n";
     t += "var PLATFORM_CMDS = {\n";
     t += "  mikrotik: [\n";
     t += "    { label: '/system resource print', cmd: '/system resource print' },\n";
@@ -671,6 +938,9 @@ void WebPortal::handleTerminal() {
     t += "  ws.onopen = function(){\n";
     t += "    dot.style.background = 'var(--green)';\n";
     t += "    stext.innerText = 'Connected (Port 81)';\n";
+    if (_authRequired) {
+        t += "    ws.send('AUTH:" + String(_authUser) + ":" + String(_authPass) + "');\n";
+    }
     t += "  };\n";
     t += "  ws.onclose = function(){\n";
     t += "    dot.style.background = 'var(--danger)';\n";
@@ -681,13 +951,15 @@ void WebPortal::handleTerminal() {
     t += "    if(e.data instanceof ArrayBuffer){\n";
     t += "      text = new TextDecoder().decode(e.data);\n";
     t += "    } else { text = e.data; }\n";
-    t += "    appendAnsiText(text);\n";
+    t += "    try{\n";
+    t += "      var prev = sessionStorage.getItem('oobm_term_raw') || '';\n";
+    t += "      if(prev.length + text.length > 300000){\n";
+    t += "        prev = prev.substring(prev.length - 200000);\n";
+    t += "      }\n";
+    t += "      sessionStorage.setItem('oobm_term_raw', prev + text);\n";
+    t += "    }catch(err){}\n";
+    t += "    emulator.write(text);\n";
     t += "  };\n";
-    t += "}\n";
-    t += "function appendAnsiText(str){\n";
-    t += "  var clean = str.replace(/\\x1b\\[[0-9;]*[a-zA-Z]/g, function(match){ return ''; });\n";
-    t += "  term.textContent += clean;\n";
-    t += "  term.scrollTop = term.scrollHeight;\n";
     t += "}\n";
     t += "function sendSpecialKey(code){ if(ws && ws.readyState === 1){ ws.send(new Uint8Array([code])); } }\n";
     t += "function sendEscapeSeq(seq){\n";
@@ -698,9 +970,42 @@ void WebPortal::handleTerminal() {
     t += "  }\n";
     t += "}\n";
     t += "function sendCmd(cmd){ if(ws && ws.readyState === 1){ ws.send(cmd + '\\r\\n'); } }\n";
-    t += "function clearTerminal(){ term.textContent = ''; }\n";
-    t += "function reconnectWs(){ if(ws) ws.close(); initWs(); }\n";
-    t += "term.addEventListener('keydown', function(e){\n";
+    t += "function clearTerminal(){\n";
+    t += "  try{ sessionStorage.removeItem('oobm_term_raw'); }catch(e){}\n";
+    t += "  emulator.reset();\n";
+    t += "}\n";
+    t += "function sendPasteData(clipText){\n";
+    t += "  if(!clipText || !ws || ws.readyState !== 1) return;\n";
+    t += "  var lines = clipText.replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n').split('\\n');\n";
+    t += "  if(lines.length <= 1){\n";
+    t += "    ws.send(clipText);\n";
+    t += "    return;\n";
+    t += "  }\n";
+    t += "  var idx = 0;\n";
+    t += "  function sendNext(){\n";
+    t += "    if(idx >= lines.length || !ws || ws.readyState !== 1) return;\n";
+    t += "    var l = lines[idx];\n";
+    t += "    idx++;\n";
+    t += "    var isLast = (idx >= lines.length);\n";
+    t += "    var hasTrailing = (clipText.endsWith('\\n') || clipText.endsWith('\\r'));\n";
+    t += "    ws.send(l + (isLast && !hasTrailing ? '' : '\\r'));\n";
+    t += "    if(!isLast) setTimeout(sendNext, 25);\n";
+    t += "  }\n";
+    t += "  sendNext();\n";
+    t += "}\n";
+    t += "termEl.addEventListener('paste', function(e){\n";
+    t += "  e.preventDefault();\n";
+    t += "  var clipText = (e.clipboardData || window.clipboardData).getData('text');\n";
+    t += "  sendPasteData(clipText);\n";
+    t += "});\n";
+    t += "window.addEventListener('paste', function(e){\n";
+    t += "  if(document.activeElement === termEl || termEl.contains(document.activeElement)){\n";
+    t += "    e.preventDefault();\n";
+    t += "    var clipText = (e.clipboardData || window.clipboardData).getData('text');\n";
+    t += "    sendPasteData(clipText);\n";
+    t += "  }\n";
+    t += "});\n";
+    t += "termEl.addEventListener('keydown', function(e){\n";
     t += "  if(e.key === 'Backspace'){ e.preventDefault(); sendSpecialKey(8); return; }\n";
     t += "  if(e.key === 'Tab'){ e.preventDefault(); sendSpecialKey(9); return; }\n";
     t += "  if(e.key === 'Enter'){ e.preventDefault(); sendSpecialKey(13); return; }\n";
@@ -708,9 +1013,33 @@ void WebPortal::handleTerminal() {
     t += "  if(e.key === 'ArrowDown'){ e.preventDefault(); sendEscapeSeq('[B'); return; }\n";
     t += "  if(e.key === 'ArrowLeft'){ e.preventDefault(); sendEscapeSeq('[D'); return; }\n";
     t += "  if(e.key === 'ArrowRight'){ e.preventDefault(); sendEscapeSeq('[C'); return; }\n";
-    t += "  if(e.ctrlKey && e.key === 'c'){ e.preventDefault(); sendSpecialKey(3); return; }\n";
-    t += "  if(e.ctrlKey && e.key === 'z'){ e.preventDefault(); sendSpecialKey(26); return; }\n";
-    t += "  if(e.ctrlKey && e.key === 'd'){ e.preventDefault(); sendSpecialKey(4); return; }\n";
+    t += "  if(e.key === 'Delete'){ e.preventDefault(); sendEscapeSeq('[3~'); return; }\n";
+    t += "  if(e.key === 'Home'){ e.preventDefault(); sendEscapeSeq('[H'); return; }\n";
+    t += "  if(e.key === 'End'){ e.preventDefault(); sendEscapeSeq('[F'); return; }\n";
+    t += "  if(e.key === 'PageUp'){ e.preventDefault(); sendEscapeSeq('[5~'); return; }\n";
+    t += "  if(e.key === 'PageDown'){ e.preventDefault(); sendEscapeSeq('[6~'); return; }\n";
+    t += "  if(e.ctrlKey && !e.altKey && !e.metaKey){\n";
+    t += "    var k = e.key.toLowerCase();\n";
+    t += "    if(k === 'c'){\n";
+    t += "      var sel = window.getSelection().toString();\n";
+    t += "      if(sel.length > 0) return;\n";
+    t += "      e.preventDefault(); sendSpecialKey(3); return;\n";
+    t += "    }\n";
+    t += "    if(k === 'v'){\n";
+    t += "      if(navigator.clipboard && navigator.clipboard.readText){\n";
+    t += "        e.preventDefault();\n";
+    t += "        navigator.clipboard.readText().then(function(t){ sendPasteData(t); }).catch(function(){});\n";
+    t += "        return;\n";
+    t += "      }\n";
+    t += "      return;\n";
+    t += "    }\n";
+    t += "    if(k.length === 1 && k >= 'a' && k <= 'z'){\n";
+    t += "      e.preventDefault();\n";
+    t += "      var code = k.charCodeAt(0) - 96;\n";
+    t += "      sendSpecialKey(code);\n";
+    t += "      return;\n";
+    t += "    }\n";
+    t += "  }\n";
     t += "  if(e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey){\n";
     t += "    e.preventDefault();\n";
     t += "    if(ws && ws.readyState === 1) ws.send(e.key);\n";
@@ -1064,12 +1393,20 @@ void WebPortal::handleWifiPage() {
     w += "function saveWifi(e){\n";
     w += "  e.preventDefault();\n";
     w += "  var fd = new FormData(document.getElementById('wifi_form'));\n";
+    w += "  var btn = document.querySelector('#wifi_form button[type=\"submit\"]');\n";
+    w += "  if(btn){ btn.disabled = true; btn.innerText = 'Connecting & Rebooting...'; }\n";
     w += "  fetch('/api/wifi/save', { method: 'POST', body: fd }).then(r=>r.json()).then(res=>{\n";
     w += "    if(res.success){\n";
-    w += "      showToast('Wi-Fi settings saved. Connecting...');\n";
-    w += "      setTimeout(()=>location.href='/settings', 3000);\n";
-    w += "    } else { showToast('Error saving Wi-Fi', true); }\n";
-    w += "  }).catch(()=>showToast('Request failed', true));\n";
+    w += "      showToast('Wi-Fi saved! Rebooting to connect to network...');\n";
+    w += "      setTimeout(function(){ location.href = '/'; }, 6000);\n";
+    w += "    } else {\n";
+    w += "      if(btn){ btn.disabled = false; btn.innerText = 'Connect & Save Wi-Fi'; }\n";
+    w += "      showToast('Error saving Wi-Fi', true);\n";
+    w += "    }\n";
+    w += "  }).catch(()=>{\n";
+    w += "    showToast('Rebooting device...', false);\n";
+    w += "    setTimeout(function(){ location.href = '/'; }, 6000);\n";
+    w += "  });\n";
     w += "}\n";
     w += "loadScan();\n";
     w += "</script>\n";
@@ -1151,7 +1488,10 @@ void WebPortal::handleUpdatePage() {
 }
 
 void WebPortal::handleMetrics() {
-    if (!checkAuth()) return;
+    if (_authRequired && !isAuthenticated()) {
+        _server.requestAuthentication(BASIC_AUTH, "ESP-OOBM");
+        return;
+    }
 
     SystemStatsData stats;
     SystemStats::update(stats);
@@ -1159,7 +1499,10 @@ void WebPortal::handleMetrics() {
 }
 
 void WebPortal::handleSyncNtp() {
-    if (!checkAuth()) return;
+    if (!isAuthenticated()) {
+        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+        return;
+    }
     triggerNtpSync();
     if (_server.hasArg("redirect")) {
         _server.sendHeader("Location", _server.arg("redirect"));
@@ -1170,7 +1513,10 @@ void WebPortal::handleSyncNtp() {
 }
 
 void WebPortal::handleResetWifi() {
-    if (!checkAuth()) return;
+    if (!isAuthenticated()) {
+        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+        return;
+    }
     _prefs.remove(NVS_KEY_WIFI_SSID);
     _prefs.remove(NVS_KEY_WIFI_PASS);
     _server.send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='utf-8'><style>body{font-family:sans-serif;text-align:center;padding:50px;background:#0b1120;color:#e2e8f0;}</style></head><body><h3 style='color:#ef4444;'>WiFi credentials erased.</h3><p>Restarting into Standalone AP mode...</p></body></html>");
@@ -1179,10 +1525,135 @@ void WebPortal::handleResetWifi() {
 }
 
 // =============================================================================
+// Login & Session Authentication Handlers
+// =============================================================================
+void WebPortal::handleLoginPage() {
+    _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    _server.send(200, "text/html; charset=utf-8", "");
+
+    _server.sendContent_P(PSTR("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\">"
+                               "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"
+                               "<title>Sign In - ESP-OOBM</title>"
+                               "<link rel=\"icon\" type=\"image/svg+xml\" href=\"/favicon.svg\">"
+                               "<link rel=\"icon\" type=\"image/x-icon\" href=\"/favicon.ico\">"
+                               "<style>"));
+    _server.sendContent_P(COMMON_CSS);
+    _server.sendContent_P(PSTR(
+        ".login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}\n"
+        ".login-card{background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.25);width:100%;max-width:380px;overflow:hidden;position:relative;}\n"
+        ".login-body{padding:28px 24px;}\n"
+    ));
+    _server.sendContent_P(PSTR("</style><script>"));
+    _server.sendContent_P(COMMON_JS);
+    _server.sendContent_P(PSTR(
+        "function doLogin(e){\n"
+        "  if(e) e.preventDefault();\n"
+        "  var u = document.getElementById('usr').value.trim();\n"
+        "  var p = document.getElementById('pwd').value;\n"
+        "  var err = document.getElementById('login_err');\n"
+        "  var btn = document.getElementById('btn_submit');\n"
+        "  if(!u || !p){\n"
+        "    err.style.display = 'block';\n"
+        "    err.innerText = 'Please enter both username and password.';\n"
+        "    return false;\n"
+        "  }\n"
+        "  btn.disabled = true;\n"
+        "  btn.innerText = 'Signing In...';\n"
+        "  var fd = new FormData();\n"
+        "  fd.append('usr', u);\n"
+        "  fd.append('pwd', p);\n"
+        "  fetch('/api/login', { method: 'POST', body: fd })\n"
+        "    .then(function(r){ return r.json(); })\n"
+        "    .then(function(d){\n"
+        "      btn.disabled = false;\n"
+        "      btn.innerText = 'Sign In \\u2192';\n"
+        "      if(d.success){\n"
+        "        var redir = new URLSearchParams(window.location.search).get('redir') || '/';\n"
+        "        window.location.href = redir;\n"
+        "      } else {\n"
+        "        err.style.display = 'block';\n"
+        "        err.innerText = d.error || 'Invalid credentials.';\n"
+        "      }\n"
+        "    })\n"
+        "    .catch(function(){\n"
+        "      btn.disabled = false;\n"
+        "      btn.innerText = 'Sign In \\u2192';\n"
+        "      err.style.display = 'block';\n"
+        "      err.innerText = 'Connection error. Please retry.';\n"
+        "    });\n"
+        "  return false;\n"
+        "}\n"
+    ));
+    _server.sendContent_P(PSTR("</script></head><body>"
+                               "<div class=\"login-wrap\"><div class=\"login-card\">"
+                               "<div class=\"top-accent\"></div><div class=\"login-body\">"
+                               "<div style=\"text-align:center;margin-bottom:20px;\">"));
+    _server.sendContent_P(OOBM_LOGO_SVG);
+    _server.sendContent_P(PSTR("<div style=\"font-size:0.82rem;color:var(--muted);margin-top:6px;font-weight:500;\">"
+                               "Wireless Out-of-Band Management Dongle</div></div>"
+                               "<div id=\"login_err\" style=\"display:none;margin-bottom:16px;padding:8px 12px;border-radius:6px;background:#fee2e2;color:#b91c1c;font-size:0.84rem;font-weight:600;border:1px solid #fca5a5;\"></div>"
+                               "<form onsubmit=\"return doLogin(event);\">"
+                               "<div class=\"form-group\" style=\"margin-bottom:14px;\">"
+                               "  <label for=\"usr\">Username</label>"
+                               "  <input type=\"text\" id=\"usr\" class=\"form-control\" placeholder=\"admin\" value=\"admin\" autofocus autocomplete=\"username\" required>"
+                               "</div>"
+                               "<div class=\"form-group\" style=\"margin-bottom:18px;\">"
+                               "  <label for=\"pwd\">Password</label>"
+                               "  <input type=\"password\" id=\"pwd\" class=\"form-control\" placeholder=\"••••••••\" autocomplete=\"current-password\" required>"
+                               "</div>"
+                               "<button type=\"submit\" id=\"btn_submit\" class=\"btn btn-primary\" style=\"width:100%;justify-content:center;padding:10px 16px;\">"
+                               "  Sign In &rarr;"
+                               "</button>"
+                               "</form>"
+                               "<div style=\"margin-top:22px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:14px;\">"
+                               "  <span style=\"font-size:0.75rem;color:var(--muted);\">v" FIRMWARE_VERSION "</span>"
+                               "  <div class=\"theme-switch\">"
+                               "    <button id=\"themeBtnLight\" class=\"theme-btn\" onclick=\"setTheme('light')\" title=\"Light Theme\">"
+                               "      <svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41\"/></svg>"
+                               "    </button>"
+                               "    <button id=\"themeBtnDark\" class=\"theme-btn\" onclick=\"setTheme('dark')\" title=\"Dark Theme\">"
+                               "      <svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z\"/></svg>"
+                               "    </button>"
+                               "    <button id=\"themeBtnSystem\" class=\"theme-btn\" onclick=\"setTheme('system')\" title=\"System Theme\">"
+                               "      <svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"3\" width=\"20\" height=\"14\" rx=\"2\"/><line x1=\"8\" y1=\"21\" x2=\"16\" y2=\"21\"/><line x1=\"12\" y1=\"17\" x2=\"12\" y2=\"21\"/></svg>"
+                               "    </button>"
+                               "  </div>"
+                               "</div>"
+                               "</div></div></div></body></html>"
+    ));
+    _server.sendContent("");
+}
+
+void WebPortal::handleApiLogin() {
+    String u = _server.hasArg("usr") ? _server.arg("usr") : (_server.hasArg("user") ? _server.arg("user") : "");
+    String p = _server.hasArg("pwd") ? _server.arg("pwd") : (_server.hasArg("pass") ? _server.arg("pass") : "");
+
+    if (u == _authUser && p == _authPass) {
+        String setCookie = "oobm_session=" + _sessionToken + "; Path=/; Max-Age=86400; SameSite=Lax";
+        _server.sendHeader("Set-Cookie", setCookie);
+        logger.logInfo("Web user '%s' logged in successfully.", _authUser);
+        _server.send(200, "application/json", "{\"success\":true,\"token\":\"" + _sessionToken + "\"}");
+    } else {
+        logger.logWarn("Failed web login attempt with username '%s'.", u.c_str());
+        _server.send(401, "application/json", "{\"success\":false,\"error\":\"Invalid username or password\"}");
+    }
+}
+
+void WebPortal::handleLogout() {
+    _server.sendHeader("Set-Cookie", "oobm_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+    _server.sendHeader("Location", "/");
+    _server.send(302, "text/plain", "");
+    logger.logInfo("User logged out.");
+}
+
+// =============================================================================
 // AJAX Endpoints
 // =============================================================================
 void WebPortal::handleApiStatus() {
-    if (!checkAuth()) return;
+    if (!isAuthenticated()) {
+        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+        return;
+    }
 
     SystemStatsData stats;
     SystemStats::update(stats);
@@ -1248,7 +1719,10 @@ void WebPortal::handleApiStatus() {
 }
 
 void WebPortal::handleApiScan() {
-    if (!checkAuth()) return;
+    if (!isAuthenticated()) {
+        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+        return;
+    }
 
     int n = WiFi.scanNetworks(false, true);
     String json = "[";
@@ -1261,7 +1735,10 @@ void WebPortal::handleApiScan() {
 }
 
 void WebPortal::handleApiLogs() {
-    if (!checkAuth()) return;
+    if (!isAuthenticated()) {
+        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+        return;
+    }
 
     String json = "[";
     size_t count = logger.getCount();
@@ -1286,7 +1763,10 @@ void WebPortal::handleApiLogs() {
 }
 
 void WebPortal::handleApiSaveSettings() {
-    if (!checkAuth()) return;
+    if (!isAuthenticated()) {
+        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+        return;
+    }
 
     // Device Hostname & Static IP
     if (_server.hasArg("dev_host")) {
@@ -1370,8 +1850,8 @@ void WebPortal::handleApiSaveSettings() {
         if (u.length() > 0) _prefs.putString(NVS_KEY_AUTH_USER, u);
         if (p.length() > 0) _prefs.putString(NVS_KEY_AUTH_PASS, p);
 
-        setAuthCredentials(authEn, u.c_str(), p.length() > 0 ? p.c_str() : _authPass);
-        webTerminal.setAuth(authEn, u.c_str(), p.length() > 0 ? p.c_str() : _authPass);
+        setAuthCredentials(authEn, u.length() > 0 ? u.c_str() : _authUser, p.length() > 0 ? p.c_str() : _authPass);
+        webTerminal.setAuth(authEn, u.length() > 0 ? u.c_str() : _authUser, p.length() > 0 ? p.c_str() : _authPass);
     }
 
     logger.logInfo("Settings saved successfully.");
@@ -1379,7 +1859,10 @@ void WebPortal::handleApiSaveSettings() {
 }
 
 void WebPortal::handleApiSaveWifi() {
-    if (!checkAuth()) return;
+    if (!isAuthenticated()) {
+        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+        return;
+    }
 
     if (_server.hasArg("sta_ssid")) {
         _prefs.putString(NVS_KEY_WIFI_SSID, _server.arg("sta_ssid"));
@@ -1394,12 +1877,17 @@ void WebPortal::handleApiSaveWifi() {
         _prefs.putBool(NVS_KEY_MNDP_EN, _server.hasArg("mndp_en"));
     }
 
-    logger.logInfo("Wi-Fi configuration updated.");
-    _server.send(200, "application/json", "{\"success\":true}");
+    logger.logInfo("Wi-Fi configuration updated. Restarting ESP32 to apply network settings...");
+    _server.send(200, "application/json", "{\"success\":true,\"reboot\":true}");
+    delay(800);
+    ESP.restart();
 }
 
 void WebPortal::handleApiRestart() {
-    if (!checkAuth()) return;
+    if (!isAuthenticated()) {
+        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+        return;
+    }
     logger.logWarn("Reboot triggered via Web API.");
     _server.send(200, "application/json", "{\"rebooting\":true}");
     delay(500);
@@ -1407,7 +1895,10 @@ void WebPortal::handleApiRestart() {
 }
 
 void WebPortal::handleApiFactoryReset() {
-    if (!checkAuth()) return;
+    if (!isAuthenticated()) {
+        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+        return;
+    }
     logger.logWarn("Factory Reset triggered via Web API.");
     _prefs.clear();
     _server.send(200, "application/json", "{\"reset\":true}");
@@ -1416,13 +1907,15 @@ void WebPortal::handleApiFactoryReset() {
 }
 
 void WebPortal::handleApiPlatform() {
-    if (!checkAuth()) return;
+    if (!isAuthenticated()) {
+        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+        return;
+    }
     if (_server.hasArg("p")) {
         _prefs.putString(NVS_KEY_CLI_PLATFORM, _server.arg("p"));
     }
     _server.send(200, "application/json", "{\"success\":true}");
 }
-
 
 // =============================================================================
 // OTA Firmware Upload Handlers
@@ -1449,7 +1942,10 @@ void WebPortal::handleUpdateUpload() {
 }
 
 void WebPortal::handleUpdateFinish() {
-    if (!checkAuth()) return;
+    if (!isAuthenticated()) {
+        _server.send(401, "text/plain", "Unauthorized");
+        return;
+    }
     if (Update.hasError()) {
         _server.send(500, "text/plain", "Update Failed");
     } else {
@@ -1463,14 +1959,23 @@ void WebPortal::handleUpdateFinish() {
 // Captive Portal & Not Found Handlers
 // =============================================================================
 void WebPortal::handleCaptivePortal() {
-    _server.sendHeader("Location", "http://" + _server.client().localIP().toString() + "/");
+    IPAddress ip = _server.client().localIP();
+    if (ip == INADDR_NONE || ip == IPAddress(0, 0, 0, 0)) {
+        ip = WiFi.softAPIP();
+    }
+    _server.sendHeader("Location", "http://" + ip.toString() + "/");
     _server.send(302, "text/plain", "");
 }
 
 void WebPortal::handleNotFound() {
-    if (_isApMode && _captiveEnabled) {
-        handleCaptivePortal();
-    } else {
-        _server.send(404, "text/plain", "404: Not Found");
+    if ((WiFi.getMode() & WIFI_MODE_AP) && _captiveEnabled) {
+        String host = _server.hostHeader();
+        String apIp = WiFi.softAPIP().toString();
+        // If Host header is a remote domain probe, redirect to captive portal landing page
+        if (host.length() > 0 && !host.startsWith(apIp) && !host.startsWith("esp-oobm")) {
+            handleCaptivePortal();
+            return;
+        }
     }
+    _server.send(404, "text/plain", "404: Not Found");
 }

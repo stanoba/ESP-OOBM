@@ -14,6 +14,7 @@ public:
 
     void setAuthCredentials(bool enabled, const char *user, const char *pass);
     bool checkAuth();
+    bool isAuthenticated();
 
 private:
     WebServer   &_server;
@@ -23,8 +24,11 @@ private:
     bool _authRequired;
     char _authUser[32];
     char _authPass[32];
+    String _sessionToken;
     bool _isApMode;
     bool _captiveEnabled;
+
+    void updateSessionToken();
 
     // HTTP Route Handlers
     void handleRoot();
@@ -37,8 +41,11 @@ private:
     void handleUpdateFinish();
     void handleSyncNtp();
     void handleResetWifi();
+    void handleLoginPage();
+    void handleLogout();
 
     // AJAX API Handlers
+    void handleApiLogin();
     void handleApiStatus();
     void handleApiScan();
     void handleApiLogs();

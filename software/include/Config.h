@@ -50,10 +50,19 @@ void setLedWifi(bool on);
 // Access Point & Captive Portal Defaults
 // =============================================================================
 #define AP_SSID_PREFIX              "ESP-OOBM-"
-#define AP_DEFAULT_PASSWORD         ""     // Empty = Open AP for initial configuration
+#define AP_DEFAULT_PASSWORD         "oobmadm123"  // Default WPA2-PSK password
 #define AP_DEFAULT_CHANNEL          1
 #define AP_IP_ADDRESS               192, 168, 4, 1
 #define AP_NETMASK                  255, 255, 255, 0
+
+// =============================================================================
+// Security & Authentication Defaults
+// =============================================================================
+#define DEFAULT_AUTH_ENABLED        true
+#define DEFAULT_AUTH_USER           "admin"
+#define DEFAULT_AUTH_PASS           "oobmadm123"
+#define DEFAULT_TELNET_AUTH         true
+#define DEFAULT_TELNET_PASS         "oobmadm123"
 
 // =============================================================================
 // SNTP Time Synchronization Defaults

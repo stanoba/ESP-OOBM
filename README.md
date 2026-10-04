@@ -3,7 +3,7 @@
 [![PlatformIO Build](https://img.shields.io/badge/PlatformIO-ESP32--PICO--D4-orange.svg)](https://platformio.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Firmware Version](https://img.shields.io/badge/Version-v1.0.0-emerald.svg)](software/include/Config.h)
-[![Schematic](https://img.shields.io/badge/Hardware-Schematic%20(SVG)-teal.svg)](hardware/schematic.svg)
+[![Schematic](https://img.shields.io/badge/Hardware-Schematic%20(SVG)-teal.svg)](assets/schematic.svg)
 
 Open-source wireless Out-of-Band (OOB) serial console bridge for **ESP32-PICO-D4 USB Key (ESP32 KEY V1.0)** with **CH343P USB-to-UART bridge**.
 
@@ -22,9 +22,9 @@ Plug into any router, switch, firewall, or server USB port for emergency root co
 | **Status LED** | `GPIO10` (Blue SMD LED `D3`, Active-LOW) |
 | **Auto-Reset** | DTR/RTS auto-download dual-transistor circuit (hands-free flashing, no buttons) |
 | **Antenna** | 2.4 GHz SMD Ceramic Chip Antenna |
-| **Full Hardware Guide**| Detailed photos, schematics & pinout in [`hardware/README.md`](hardware/README.md) |
+| **Full Hardware Guide**| Detailed photos, schematics & pinout in [`docs/hardware.md`](docs/hardware.md) |
 
-![ESP32 KEY V1.0 USB Dongle](hardware/ESP32_dongle_01.jpg)
+![ESP32 KEY V1.0 USB Dongle](assets/ESP32_dongle_01.jpg)
 
 ---
 
@@ -78,9 +78,35 @@ pio run -e esp32_pico_d4 -t upload
 
 ### 3. Initial Wi-Fi Connection
 1. Insert dongle into any USB port (powers up in Standalone AP mode).
-2. Connect to Wi-Fi: **`ESP-OOBM-XXXXXX`** (Open by default).
+2. Connect to Wi-Fi: **`ESP-OOBM-XXXXXX`** (Password: **`oobmadm123`**).
 3. Open browser: **`http://192.168.4.1/`** (or auto-redirects via Captive Portal).
-4. Configure local Wi-Fi or access **Terminal** immediately.
+4. Log in with default credentials: User: **`admin`**, Password: **`oobmadm123`**.
+
+---
+
+## Default Security Credentials
+
+| Service / Interface | Username | Default Password | Notes |
+| :--- | :---: | :---: | :--- |
+| **Wi-Fi Access Point (AP)** | — | `oobmadm123` | WPA2-PSK Protected (SSID: `ESP-OOBM-XXXXXX`) |
+| **Web Dashboard / Portal** | `admin` | `oobmadm123` | Form Login + Session Cookie (Captive Portal safe) |
+| **WebTerminal (Port 81)** | `admin` | `oobmadm123` | Auto-authenticated when accessing via WebUI |
+| **Telnet Daemon (Port 23)** | — | `oobmadm123` | Password prompt on connection |
+| **Prometheus / REST API** | `admin` | `oobmadm123` | HTTP Basic Auth & Session Tokens |
+
+> [!TIP]
+> Credentials can be changed at any time in **Settings &rarr; Web & API Security** and **Telnet Console Service**.
+
+---
+
+## Web Management Interface
+
+ESP-OOBM features an interactive web console with 16-color ANSI terminal emulation, touch macro keys (`ESC`, `TAB`, `Ctrl+C`, `Ctrl+Z`, `Ctrl+D`), and instant command presets for RouterOS, Linux, Cisco IOS, and pfSense.
+
+![WebTerminal Console (Light Theme)](assets/ui-terminal-light.png)
+
+> [!TIP]
+> For complete dashboard screenshots, dark mode preview, and mobile usage guides, see [`docs/ui-guide.md`](docs/ui-guide.md).
 
 ---
 
@@ -91,9 +117,15 @@ pio run -e esp32_pico_d4 -t upload
 # 1. Verify USB serial port detection
 /port print
 
-# 2. Redirect root console to USB dongle (115200 baud)
-/system console add port=usb1 channel=0 disabled=no
+# 2. Set global default console terminal to xterm (persists across reboots/USB hot-plugs)
+/system console settings set default-term=xterm
+
+# 3. Redirect root console to USB dongle with full xterm ANSI color support (115200 baud)
+/system console add port=usb1 channel=0 term=xterm disabled=no
 ```
+
+> [!NOTE]
+> When logging in via serial/telnet, append `+c` to your username (e.g. `admin+c`) to force color syntax highlighting in RouterOS CLI.
 
 ### Linux / OpenWrt / Debian / Ubuntu (`systemd`)
 ```bash
@@ -129,8 +161,27 @@ ttyU0   "/usr/libexec/getty std.115200"   vt100   on  secure
 
 ---
 
-> [!NOTE]
-> For detailed firmware architecture, REST API specifications, and custom partition schemes, see [`software/README.md`](software/README.md).
+## Documentation & Deep-Dive Guides
+
+Comprehensive technical guides and protocol specifications are available in the [`docs/`](docs/) directory:
+
+| Guide | Description | Document |
+| :--- | :--- | :--- |
+| 🔌 **Hardware Specifications & Pinout** | ESP32-PICO-D4 SiP, CH343P USB-UART bridge, auto-reset circuit, schematic & BOM | [`docs/hardware.md`](docs/hardware.md) |
+| ⚙️ **Software & Firmware Architecture** | C++ core modules, FreeRTOS loop, memory partitions, NVS keys, and OTA updates | [`docs/software.md`](docs/software.md) |
+| 💻 **Web Interface & Terminal Guide** | ANSI/VT100 terminal engine, macro buttons, command quick-actions, themes | [`docs/ui-guide.md`](docs/ui-guide.md) |
+| 🌐 **REST & WebSocket API** | JSON endpoints (`/api/*`), binary WebSocket protocol (`:81`), Telnet daemon (`:23`) | [`docs/api.md`](docs/api.md) |
+| 📊 **Prometheus Exporter & Grafana** | Built-in `/metrics` exporter, Prometheus scrape job, and Grafana PromQL examples | [`docs/prometheus.md`](docs/prometheus.md) |
+
+## Disclaimer
+
+> [!CAUTION]
+> **Use at Your Own Risk.**
+> This hardware design, schematics, PCB layouts, and firmware are provided **"as is"**, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement.
+>
+> In no event shall the authors, maintainers, or contributors be held liable for any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not limited to, hardware damage, equipment bricking, data loss, network outages, electrical short circuits, or business interruption) arising in any way out of the fabrication, assembly, flashing, or usage of this project.
+>
+> Always verify USB pinouts, power ratings, and serial voltage levels before connecting custom hardware dongles to critical production servers, routers, or network appliances.
 
 ## License
 

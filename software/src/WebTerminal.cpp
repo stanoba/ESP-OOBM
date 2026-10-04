@@ -9,9 +9,11 @@ static WebTerminal *s_instance = nullptr;
 
 WebTerminal::WebTerminal() 
     : _wsServer(WEBSOCKET_PORT),
-      _authRequired(false) {
-    _authUser[0] = '\0';
-    _authPass[0] = '\0';
+      _authRequired(DEFAULT_AUTH_ENABLED) {
+    strncpy(_authUser, DEFAULT_AUTH_USER, sizeof(_authUser) - 1);
+    _authUser[sizeof(_authUser) - 1] = '\0';
+    strncpy(_authPass, DEFAULT_AUTH_PASS, sizeof(_authPass) - 1);
+    _authPass[sizeof(_authPass) - 1] = '\0';
     memset(_clientAuth, 0, sizeof(_clientAuth));
     s_instance = this;
 }
@@ -23,9 +25,9 @@ void WebTerminal::staticWsEvent(uint8_t num, WStype_t type, uint8_t *payload, si
 }
 
 void WebTerminal::begin(Preferences &prefs) {
-    _authRequired = prefs.getBool(NVS_KEY_AUTH_EN, false);
-    String user = prefs.getString(NVS_KEY_AUTH_USER, "admin");
-    String pass = prefs.getString(NVS_KEY_AUTH_PASS, "admin");
+    _authRequired = prefs.getBool(NVS_KEY_AUTH_EN, DEFAULT_AUTH_ENABLED);
+    String user = prefs.getString(NVS_KEY_AUTH_USER, DEFAULT_AUTH_USER);
+    String pass = prefs.getString(NVS_KEY_AUTH_PASS, DEFAULT_AUTH_PASS);
 
     strncpy(_authUser, user.c_str(), sizeof(_authUser) - 1);
     _authUser[sizeof(_authUser) - 1] = '\0';
@@ -61,15 +63,9 @@ void WebTerminal::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload,
                 _clientAuth[num] = !_authRequired;
             }
 
-            if (_authRequired) {
-                // Request client auth token/credentials
-                const char req[] = "\x1b[33m[ESP-OOBM: Authentication Required]\x1b[0m\r\n";
-                _wsServer.sendBIN(num, (const uint8_t*)req, strlen(req));
-            } else {
-                if (serialBridge.getGreetingBanner()) {
-                    const char banner[] = "\x1b[32m[ESP-OOBM: Connected to Serial Console]\x1b[0m\r\n";
-                    _wsServer.sendBIN(num, (const uint8_t*)banner, strlen(banner));
-                }
+            if (!_authRequired && serialBridge.getGreetingBanner()) {
+                const char banner[] = "\x1b[32m[ESP-OOBM: Connected to Serial Console]\x1b[0m\r\n";
+                _wsServer.sendBIN(num, (const uint8_t*)banner, strlen(banner));
             }
 
             g_activeWsClients = _wsServer.connectedClients();
@@ -104,8 +100,10 @@ void WebTerminal::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload,
                         const char *p = colon + 1;
                         if (strcmp(u, _authUser) == 0 && strcmp(p, _authPass) == 0) {
                             _clientAuth[num] = true;
-                            const char okMsg[] = "\x1b[32m[Authenticated successfully. Connected to Serial Console.]\x1b[0m\r\n";
-                            _wsServer.sendBIN(num, (const uint8_t*)okMsg, strlen(okMsg));
+                            if (serialBridge.getGreetingBanner()) {
+                                const char okMsg[] = "\x1b[32m[ESP-OOBM: Connected to Serial Console]\x1b[0m\r\n";
+                                _wsServer.sendBIN(num, (const uint8_t*)okMsg, strlen(okMsg));
+                            }
                             logger.logInfo("WebSocket client #%u authenticated successfully.", num);
                             return;
                         }
