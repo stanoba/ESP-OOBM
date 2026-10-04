@@ -9,8 +9,6 @@
 
 When plugged into the USB port of a router, switch, firewall, or server, the dongle acts as a secure wireless bridge to the host's serial console. It enables network administrators to perform emergency recovery, initial configuration, and live terminal debugging without requiring wired console cables or physical access.
 
-![ESP32 KEY V1.0](hardware/images/esp32_key_v1.png)
-
 ---
 
 ## Key Features

@@ -2,8 +2,6 @@
 
 The **ESP32 KEY V1.0** is an ultra-compact USB-A dongle development board based on the **Espressif ESP32-PICO-D4** System-in-Package (SiP) and the **WCH CH343P** high-speed USB-to-UART bridge controller.
 
-![ESP32 KEY V1.0](images/esp32_key_v1.png)
-
 ---
 
 ## Technical Specifications
