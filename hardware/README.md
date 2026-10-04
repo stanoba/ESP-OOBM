@@ -32,25 +32,34 @@ Vector Schematic: [`schematic.svg`](schematic.svg) • High-Res Image: [`schemat
 
 ## Operating Principle
 
+```mermaid
+flowchart LR
+    subgraph Host["Host Device (Router / Switch / Server)"]
+        direction TB
+        OS["Target OS Console<br/>(MikroTik / Linux / FreeBSD)"]
+        USB["USB Host Port<br/>(5V DC + USB CDC)"]
+        OS <-->|"TTY / Serial Console"| USB
+    end
+
+    subgraph Dongle["ESP32 KEY V1.0 (ESP-OOBM Dongle)"]
+        direction TB
+        CH["WCH CH343P<br/>USB-to-UART Bridge"]
+        
+        subgraph MCU["ESP32-PICO-D4 SoC"]
+            UART["UART0 Driver<br/>(GPIO1 TX / GPIO3 RX)"]
+            SRV["OOB Firmware Engine<br/>• WebTerminal (WS :81)<br/>• Telnet Daemon (Port 23)<br/>• Web Management UI (Port 80)"]
+            UART <--> SRV
+        end
+        
+        CH <-->|"TTL UART (115200 baud)"| UART
+    end
+
+    subgraph Client["Administrator Device"]
+        direction TB
+        UI["Web Browser / PuTTY / Telnet<br/>(Emergency Wireless Access)"]
+    end
+
+    USB <==>|"USB-A Connector"| CH
+    SRV <==>|"Wi-Fi (AP / Station Mode)<br/>802.11 b/g/n"| UI
 ```
-+--------------------------------------------------------------------------+
-| USB Host Port (Router / Switch / Server)                                 |
-|                                                                          |
-|   +---------------+     USB CDC / CH343      +-----------------------+   |
-|   | 5V / D- / D+  | <======================> | WCH CH343P Bridge     |   |
-|   +---------------+                          +-----------------------+   |
-|                                                          ^ (UART0 115.2k)|
-|                                                          v               |
-|                                              +-----------------------+   |
-|                                              | ESP32-PICO-D4         |   |
-|                                              | (ESP-OOBM Firmware)   |   |
-|                                              +-----------------------+   |
-|                                                          ^               |
-|                                                 Wi-Fi / 802.11 b/g/n     |
-|                                                          v               |
-|                                              +-----------------------+   |
-|                                              | Wireless WebTerminal  |   |
-|                                              | & Telnet Client (OOB) |   |
-|                                              +-----------------------+   |
-+--------------------------------------------------------------------------+
-```
+

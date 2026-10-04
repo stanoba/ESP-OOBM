@@ -28,6 +28,41 @@ Plug into any router, switch, firewall, or server USB port for emergency root co
 
 ---
 
+## Operating Principle
+
+```mermaid
+flowchart LR
+    subgraph Host["Host Device (Router / Switch / Server)"]
+        direction TB
+        OS["Target OS Console<br/>(MikroTik / Linux / FreeBSD)"]
+        USB["USB Host Port<br/>(5V DC + USB CDC)"]
+        OS <-->|"TTY / Serial Console"| USB
+    end
+
+    subgraph Dongle["ESP32 KEY V1.0 (ESP-OOBM Dongle)"]
+        direction TB
+        CH["WCH CH343P<br/>USB-to-UART Bridge"]
+        
+        subgraph MCU["ESP32-PICO-D4 SoC"]
+            UART["UART0 Driver<br/>(GPIO1 TX / GPIO3 RX)"]
+            SRV["OOB Firmware Engine<br/>• WebTerminal (WS :81)<br/>• Telnet Daemon (Port 23)<br/>• Web Management UI (Port 80)"]
+            UART <--> SRV
+        end
+        
+        CH <-->|"TTL UART (115200 baud)"| UART
+    end
+
+    subgraph Client["Administrator Device"]
+        direction TB
+        UI["Web Browser / PuTTY / Telnet<br/>(Emergency Wireless Access)"]
+    end
+
+    USB <==>|"USB-A Connector"| CH
+    SRV <==>|"Wi-Fi (AP / Station Mode)<br/>802.11 b/g/n"| UI
+```
+
+---
+
 ## Quick Start: Build & Flash
 
 ### 1. Compile Firmware
@@ -82,53 +117,23 @@ ttyU0   "/usr/libexec/getty std.115200"   vt100   on  secure
 
 ---
 
-## Web Terminal & Telnet Access
+## Web Terminal & Network Services
 
 | Service | Port / Protocol | URL / Connection Command |
 | :--- | :--- | :--- |
 | **Web Dashboard** | HTTP (Port 80) | `http://esp-oobm.local/` or `http://192.168.4.1/` |
 | **Web ANSI Terminal** | WebSocket (Port 81) | `http://esp-oobm.local/terminal` |
 | **Telnet Daemon** | RFC 854 (Port 23) | `telnet 192.168.4.1 23` or `putty -telnet 192.168.4.1 23` |
-| **OTA Update** | HTTP (Port 80) | `http://esp-oobm.local/update` |
+| **OTA Firmware Update**| HTTP (Port 80) | `http://esp-oobm.local/update` |
 | **Prometheus Metrics**| HTTP (Port 80) | `http://esp-oobm.local/metrics` |
 
 ---
 
-## REST API Endpoints
-
-| Endpoint | Method | Description |
-| :--- | :---: | :--- |
-| `/api/status` | `GET` | Real-time system stats (CPU, uptime, heap fragmentation, UART byte counters, Wi-Fi RSSI, NTP sync) |
-| `/api/logs` | `GET` | Circular in-memory event log buffer (JSON) |
-| `/api/scan` | `GET` | Wi-Fi network survey scan results |
-| `/api/platform` | `POST` | Store active CLI command platform preset (`p=mikrotik\|linux\|cisco\|pfsense\|generic`) in NVS |
-| `/api/settings/save` | `POST` | Save UART baud, framing, NTP timezone, and credentials |
-| `/api/wifi/save` | `POST` | Save Station Wi-Fi & AP configuration |
-| `/api/restart` | `POST` | Soft reboot device |
-| `/api/factory_reset` | `POST` | Clear all NVS configuration and reboot to factory AP defaults |
-
----
-
-## Repository Structure
-
-```
-WiFi-Out-of-Band-Management/
-├── README.md                      # Quick documentation & commands
-├── LICENSE                        # MIT License
-├── hardware/                      # Hardware schematics & pinout
-│   ├── README.md                  # Specifications & architecture diagram
-│   ├── PINOUT.md                  # Pin mapping table & debug header
-│   ├── schematic.svg              # Vector schematic diagram (CAD export)
-│   └── schematic.png              # High-resolution raster schematic
-└── software/                      # PlatformIO firmware
-    ├── platformio.ini             # Build environment (pico32 board)
-    ├── partitions_custom.csv      # 4MB dual OTA partition table
-    ├── include/                   # Headers (Config, WebPortal, SerialBridge, etc.)
-    └── src/                       # C++ source code & WebTerminal
-```
-
----
+> [!NOTE]
+> For detailed firmware architecture, REST API specifications, and custom partition schemes, see [`software/README.md`](software/README.md).
 
 ## License
 
 MIT License. Open for personal, educational, and commercial use.
+
+
