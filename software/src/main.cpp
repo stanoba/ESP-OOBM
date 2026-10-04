@@ -29,8 +29,6 @@ bool   g_ntpSynced = false;
 
 static uint32_t s_lastLedBlinkMillis = 0;
 static bool     s_ledState = false;
-static uint32_t s_buttonPressStart = 0;
-static bool     s_buttonPressed = false;
 static uint32_t s_lastNtpSyncTrigger = 0;
 static bool     s_staWasConnected = false;
 
@@ -125,32 +123,8 @@ void setupWiFi(Preferences &prefs) {
 }
 
 // =============================================================================
-// Hardware Button & LED Helper
+// Status LED Helper
 // =============================================================================
-void handleButton() {
-    bool pressed = (digitalRead(PIN_BUTTON) == LOW);
-
-    if (pressed && !s_buttonPressed) {
-        s_buttonPressed = true;
-        s_buttonPressStart = millis();
-    } else if (!pressed && s_buttonPressed) {
-        uint32_t duration = millis() - s_buttonPressStart;
-        s_buttonPressed = false;
-
-        if (duration >= 5000) {
-            // Long Press > 5s -> Factory Reset
-            logger.logWarn("Button Long Press detected (>5s)! Performing Factory Reset...");
-            preferences.clear();
-            delay(500);
-            ESP.restart();
-        } else if (duration >= 100) {
-            // Short Press -> Broadcast MNDP discovery announcement
-            logger.logInfo("Button Short Press: Sending MNDP announcement.");
-            mndpDiscovery.sendAnnouncement();
-        }
-    }
-}
-
 void setLedWifi(bool on) {
     digitalWrite(PIN_LED_STATUS, on ? LED_ACTIVE_LEVEL : !LED_ACTIVE_LEVEL);
 }
@@ -180,7 +154,6 @@ void updateLed() {
 // Setup Function
 // =============================================================================
 void setup() {
-    pinMode(PIN_BUTTON, INPUT_PULLUP);
     pinMode(PIN_LED_STATUS, OUTPUT);
     digitalWrite(PIN_LED_STATUS, !LED_ACTIVE_LEVEL);
 
@@ -264,8 +237,7 @@ void loop() {
         triggerNtpSync();
     }
 
-    // 5. Handle Hardware Button & Activity LED
-    handleButton();
+    // 5. Update Status LED
     updateLed();
 
     yield();

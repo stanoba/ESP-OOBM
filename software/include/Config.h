@@ -18,9 +18,9 @@
 // =============================================================================
 #define PIN_UART_TX                 1    // GPIO1 (U0TXD -> CH343P RXD)
 #define PIN_UART_RX                 3    // GPIO3 (U0RXD <- CH343P TXD)
-#define PIN_BUTTON                  0    // GPIO0 (Tactile Button: Boot / Factory Reset)
 #define PIN_LED_STATUS              10   // GPIO10 (On-board Blue LED D3, Active-LOW)
 #define LED_ACTIVE_LEVEL            LOW  // LOW = ON, HIGH = OFF
+// Note: EN & GPIO0 are controlled via CH343P DTR/RTS auto-download transistor circuit (Q1/Q2 S8050)
 
 void setLedWifi(bool on);
 

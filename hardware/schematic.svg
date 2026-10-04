@@ -1,0 +1,692 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1050" width="1600" height="1050">
+<defs>
+<style>
+  .sheet-bg { fill: #FFFDF9; }
+  .grid-border { stroke: #000000; stroke-width: 1.5; fill: none; }
+  .grid-inner { stroke: #000000; stroke-width: 0.8; fill: none; }
+  .grid-text { font-family: "Courier New", monospace; font-size: 11px; font-weight: bold; fill: #000000; text-anchor: middle; dominant-baseline: middle; }
+  .title-text { font-family: "Times New Roman", serif; font-size: 24px; font-weight: bold; fill: #000080; }
+  .block-title { font-family: "Courier New", monospace; font-size: 16px; font-weight: bold; fill: #000080; }
+  .comp-box { fill: #FFFFE6; stroke: #000000; stroke-width: 1.2; }
+  .comp-name { font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: bold; fill: #000000; text-anchor: middle; dominant-baseline: middle; }
+  .comp-ref { font-family: Arial, Helvetica, sans-serif; font-size: 11px; font-weight: bold; fill: #000080; }
+  .comp-val { font-family: Arial, Helvetica, sans-serif; font-size: 9.5px; font-weight: bold; fill: #000080; }
+  .pin-name { font-family: Arial, Helvetica, sans-serif; font-size: 8px; font-weight: bold; fill: #000000; }
+  .pin-num { font-family: Arial, Helvetica, sans-serif; font-size: 7.5px; fill: #000080; }
+  .wire { stroke: #000080; stroke-width: 1.2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .wire-thick { stroke: #000080; stroke-width: 1.5; fill: none; }
+  .dot { fill: #000080; }
+  .net-label { font-family: Arial, Helvetica, sans-serif; font-size: 9px; font-weight: bold; fill: #800000; }
+  .pwr-text { font-family: Arial, Helvetica, sans-serif; font-size: 9px; font-weight: bold; fill: #800000; text-anchor: middle; }
+  .pwr-sym { stroke: #800000; stroke-width: 1.2; fill: none; }
+  .gnd-sym { stroke: #000080; stroke-width: 1.2; fill: none; }
+  .tb-line { stroke: #000000; stroke-width: 0.8; }
+  .tb-label { font-family: Arial, Helvetica, sans-serif; font-size: 8px; fill: #555555; }
+  .tb-val { font-family: Arial, Helvetica, sans-serif; font-size: 9px; font-weight: bold; fill: #000000; }
+</style>
+</defs>
+<rect width="1600" height="1050" class="sheet-bg" />
+<rect x="30" y="30" width="1540" height="990" class="grid-border" />
+<rect x="45" y="45" width="1510" height="960" class="grid-inner" />
+<text x="139.375" y="37.5" class="grid-text">1</text>
+<text x="139.375" y="1012.5" class="grid-text">1</text>
+<text x="328.125" y="37.5" class="grid-text">2</text>
+<text x="328.125" y="1012.5" class="grid-text">2</text>
+<line x1="233.75" y1="30" x2="233.75" y2="45" stroke="#000" stroke-width="0.8"/>
+<line x1="233.75" y1="1005" x2="233.75" y2="1020" stroke="#000" stroke-width="0.8"/>
+<text x="516.875" y="37.5" class="grid-text">3</text>
+<text x="516.875" y="1012.5" class="grid-text">3</text>
+<line x1="422.5" y1="30" x2="422.5" y2="45" stroke="#000" stroke-width="0.8"/>
+<line x1="422.5" y1="1005" x2="422.5" y2="1020" stroke="#000" stroke-width="0.8"/>
+<text x="705.625" y="37.5" class="grid-text">4</text>
+<text x="705.625" y="1012.5" class="grid-text">4</text>
+<line x1="611.25" y1="30" x2="611.25" y2="45" stroke="#000" stroke-width="0.8"/>
+<line x1="611.25" y1="1005" x2="611.25" y2="1020" stroke="#000" stroke-width="0.8"/>
+<text x="894.375" y="37.5" class="grid-text">5</text>
+<text x="894.375" y="1012.5" class="grid-text">5</text>
+<line x1="800.0" y1="30" x2="800.0" y2="45" stroke="#000" stroke-width="0.8"/>
+<line x1="800.0" y1="1005" x2="800.0" y2="1020" stroke="#000" stroke-width="0.8"/>
+<text x="1083.125" y="37.5" class="grid-text">6</text>
+<text x="1083.125" y="1012.5" class="grid-text">6</text>
+<line x1="988.75" y1="30" x2="988.75" y2="45" stroke="#000" stroke-width="0.8"/>
+<line x1="988.75" y1="1005" x2="988.75" y2="1020" stroke="#000" stroke-width="0.8"/>
+<text x="1271.875" y="37.5" class="grid-text">7</text>
+<text x="1271.875" y="1012.5" class="grid-text">7</text>
+<line x1="1177.5" y1="30" x2="1177.5" y2="45" stroke="#000" stroke-width="0.8"/>
+<line x1="1177.5" y1="1005" x2="1177.5" y2="1020" stroke="#000" stroke-width="0.8"/>
+<text x="1460.625" y="37.5" class="grid-text">8</text>
+<text x="1460.625" y="1012.5" class="grid-text">8</text>
+<line x1="1366.25" y1="30" x2="1366.25" y2="45" stroke="#000" stroke-width="0.8"/>
+<line x1="1366.25" y1="1005" x2="1366.25" y2="1020" stroke="#000" stroke-width="0.8"/>
+<text x="37.5" y="165.0" class="grid-text">A</text>
+<text x="1562.5" y="165.0" class="grid-text">A</text>
+<text x="37.5" y="405.0" class="grid-text">B</text>
+<text x="1562.5" y="405.0" class="grid-text">B</text>
+<line x1="30" y1="285.0" x2="45" y2="285.0" stroke="#000" stroke-width="0.8"/>
+<line x1="1555" y1="285.0" x2="1570" y2="285.0" stroke="#000" stroke-width="0.8"/>
+<text x="37.5" y="645.0" class="grid-text">C</text>
+<text x="1562.5" y="645.0" class="grid-text">C</text>
+<line x1="30" y1="525.0" x2="45" y2="525.0" stroke="#000" stroke-width="0.8"/>
+<line x1="1555" y1="525.0" x2="1570" y2="525.0" stroke="#000" stroke-width="0.8"/>
+<text x="37.5" y="885.0" class="grid-text">D</text>
+<text x="1562.5" y="885.0" class="grid-text">D</text>
+<line x1="30" y1="765.0" x2="45" y2="765.0" stroke="#000" stroke-width="0.8"/>
+<line x1="1555" y1="765.0" x2="1570" y2="765.0" stroke="#000" stroke-width="0.8"/>
+<rect x="1275" y="915" width="280" height="90" fill="#FFF" stroke="#000" stroke-width="1.2" />
+<line x1="1275" y1="950" x2="1555" y2="950" class="tb-line" />
+<line x1="1275" y1="975" x2="1555" y2="975" class="tb-line" />
+<line x1="1325" y1="950" x2="1325" y2="975" class="tb-line" />
+<line x1="1465" y1="950" x2="1465" y2="975" class="tb-line" />
+<line x1="1415" y1="975" x2="1415" y2="1005" class="tb-line" />
+<text x="1280" y="927" class="tb-label">Title</text>
+<text x="1310" y="939" class="tb-val" font-size="14px">ESP32 Board</text>
+<text x="1280" y="959" class="tb-label">Size</text>
+<text x="1293" y="969" class="tb-val">A4</text>
+<text x="1330" y="959" class="tb-label">Number</text>
+<text x="1360" y="969" class="tb-val">ESP32-KEY-V1.0</text>
+<text x="1470" y="959" class="tb-label">Revision</text>
+<text x="1505" y="969" class="tb-val">1.0</text>
+<text x="1280" y="985" class="tb-label">Date: 5/15/2020</text>
+<text x="1280" y="997" class="tb-label">File: Schematic_esp32.SchDoc</text>
+<text x="1420" y="985" class="tb-label">Sheet 1 of 1</text>
+<text x="1420" y="997" class="tb-label">Drawn By: HW Team</text>
+<text x="800.0" y="85" class="title-text" text-anchor="middle">ESP32 Board</text>
+<text x="280" y="690" class="block-title" font-family="Courier New, monospace" font-size="16px" font-weight="bold" fill="#000080" text-anchor="middle">POWER</text>
+<rect x="210" y="780" width="65" height="75" class="comp-box" fill="#FFFFE6" stroke="#000000" stroke-width="1.2" />
+<text x="242.5" y="869" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080" text-anchor="middle">USB1</text>
+<text x="218" y="796" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">VCC</text>
+<text x="206" y="790" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">4</text>
+<line x1="195" y1="792" x2="210" y2="792" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="218" y="816" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">D-</text>
+<text x="206" y="810" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">3</text>
+<line x1="170" y1="812" x2="210" y2="812" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="155,807 167,807 170,812 167,817 155,817 160,812" fill="#FFE6E6" stroke="#800000" stroke-width="0.9" />
+<text x="150" y="815" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="end">USB_N</text>
+<text x="218" y="836" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">D+</text>
+<text x="206" y="830" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">2</text>
+<line x1="170" y1="832" x2="210" y2="832" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="155,827 167,827 170,832 167,837 155,837 160,832" fill="#FFE6E6" stroke="#800000" stroke-width="0.9" />
+<text x="150" y="835" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="end">USB_P</text>
+<text x="218" y="851" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">GND</text>
+<text x="206" y="845" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">1</text>
+<line x1="195" y1="847" x2="210" y2="847" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="195" y1="847" x2="195" y2="872" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="195" y1="872" x2="195" y2="880" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="187" y1="880" x2="203" y2="880" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="190" y1="884" x2="200" y2="884" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="193" y1="888" x2="197" y2="888" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="195" y="898" font-family="Arial, Helvetica, sans-serif" font-size="8.5px" font-weight="bold" fill="#000080" text-anchor="middle">GND</text>
+<line x1="195" y1="792" x2="170" y2="792" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="170" y1="792" x2="170" y2="750" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<circle cx="170" cy="750" r="2.5" class="dot" fill="#000080" />
+<line x1="170" y1="750" x2="170" y2="728" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="170,720 165,728 175,728" fill="#800000" stroke="#800000" stroke-width="0.8" />
+<text x="170" y="716" class="pwr-text" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="middle">5V_USB</text>
+<line x1="170" y1="750" x2="390" y2="750" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<circle cx="390" cy="750" r="2.5" class="dot" fill="#000080" />
+<line x1="390" y1="750" x2="390" y2="728" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="390,720 385,728 395,728" fill="#800000" stroke="#800000" stroke-width="0.8" />
+<text x="390" y="716" class="pwr-text" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="middle">5V</text>
+<line x1="390" y1="750" x2="390" y2="870" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="390" y1="870" x2="390" y2="878" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="383" y1="878" x2="397" y2="878" class="wire-thick" stroke="#000080" stroke-width="1.5" fill="none" />
+<line x1="383" y1="882" x2="397" y2="882" class="wire-thick" stroke="#000080" stroke-width="1.5" fill="none" />
+<line x1="390" y1="882" x2="390" y2="890" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="399" y="878" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080" text-anchor="start">C10</text>
+<text x="399" y="888" class="comp-val" font-family="Arial, Helvetica, sans-serif" font-size="9.5px" font-weight="bold" fill="#000080" text-anchor="start">10uF</text>
+<line x1="390" y1="890" x2="390" y2="898" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="382" y1="898" x2="398" y2="898" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="385" y1="902" x2="395" y2="902" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="388" y1="906" x2="392" y2="906" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="390" y="916" font-family="Arial, Helvetica, sans-serif" font-size="8.5px" font-weight="bold" fill="#000080" text-anchor="middle">GND</text>
+<rect x="440" y="770" width="75" height="65" class="comp-box" fill="#FFFFE6" stroke="#000000" stroke-width="1.2" />
+<text x="448" y="764" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080">U2</text>
+<text x="477.5" y="849" class="comp-val" font-family="Arial, Helvetica, sans-serif" font-size="9.5px" font-weight="bold" fill="#000080" text-anchor="middle">ME6211C33M5G</text>
+<text x="445" y="788.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">VIN</text>
+<text x="436" y="781" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">1</text>
+<line x1="390" y1="785" x2="440" y2="785" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<circle cx="390" cy="785" r="2.5" class="dot" fill="#000080" />
+<text x="445" y="806" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">VSS</text>
+<text x="436" y="798.5" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">2</text>
+<line x1="425" y1="802.5" x2="440" y2="802.5" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="425" y1="802.5" x2="419" y2="802.5" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="419" y1="795.5" x2="419" y2="809.5" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="415" y1="798.5" x2="415" y2="806.5" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="411" y1="800.5" x2="411" y2="804.5" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="407" y="805.5" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000080" text-anchor="end">GND</text>
+<text x="445" y="823.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">CE</text>
+<text x="436" y="816" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">3</text>
+<line x1="390" y1="820" x2="440" y2="820" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<circle cx="390" cy="820" r="2.5" class="dot" fill="#000080" />
+<text x="510" y="823.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">NC</text>
+<text x="519" y="816" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">4</text>
+<line x1="515" y1="820" x2="530" y2="820" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="510" y="788.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">VOUT</text>
+<text x="519" y="781" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">5</text>
+<line x1="515" y1="785" x2="550" y2="785" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<circle cx="550" cy="785" r="2.5" class="dot" fill="#000080" />
+<line x1="550" y1="785" x2="550" y2="748" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="550,740 545,748 555,748" fill="#800000" stroke="#800000" stroke-width="0.8" />
+<text x="550" y="736" class="pwr-text" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="middle">3V3</text>
+<line x1="550" y1="785" x2="550" y2="800" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="550" y1="800" x2="550" y2="808" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="543" y1="808" x2="557" y2="808" class="wire-thick" stroke="#000080" stroke-width="1.5" fill="none" />
+<line x1="543" y1="812" x2="557" y2="812" class="wire-thick" stroke="#000080" stroke-width="1.5" fill="none" />
+<line x1="550" y1="812" x2="550" y2="820" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="559" y="808" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080" text-anchor="start">C9</text>
+<text x="559" y="818" class="comp-val" font-family="Arial, Helvetica, sans-serif" font-size="9.5px" font-weight="bold" fill="#000080" text-anchor="start">22uF</text>
+<line x1="550" y1="820" x2="550" y2="828" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="542" y1="828" x2="558" y2="828" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="545" y1="832" x2="555" y2="832" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="548" y1="836" x2="552" y2="836" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="550" y="846" font-family="Arial, Helvetica, sans-serif" font-size="8.5px" font-weight="bold" fill="#000080" text-anchor="middle">GND</text>
+<rect x="630" y="730" width="185" height="230" fill="none" stroke="#800000" stroke-width="1.5" />
+<polygon points="630,730 640,730 630,740" fill="#800000" />
+<text x="722.5" y="756" class="block-title" font-family="Courier New, monospace" font-size="16px" font-weight="bold" fill="#000080" text-anchor="middle">PROGRAM</text>
+<rect x="655" y="790" width="20" height="130" fill="#888888" stroke="#333333" stroke-width="1" />
+<text x="665" y="784" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080" text-anchor="middle">J1</text>
+<text x="679" y="803" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080">6</text>
+<line x1="675" y1="805" x2="750" y2="805" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="750" y1="805" x2="756" y2="805" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="756" y1="798" x2="756" y2="812" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="760" y1="801" x2="760" y2="809" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="764" y1="803" x2="764" y2="807" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="768" y="808" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000080" text-anchor="start">GND</text>
+<text x="679" y="823" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080">5</text>
+<line x1="675" y1="825" x2="735" y2="825" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="695" y="822" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000080">TXD0</text>
+<text x="679" y="843" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080">4</text>
+<line x1="675" y1="845" x2="735" y2="845" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="695" y="842" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000080">RXD0</text>
+<text x="679" y="863" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080">3</text>
+<line x1="675" y1="865" x2="735" y2="865" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="695" y="862" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000080">GPIO0</text>
+<text x="679" y="883" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080">2</text>
+<line x1="675" y1="885" x2="735" y2="885" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="695" y="882" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000080">EN</text>
+<text x="679" y="903" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080">1</text>
+<line x1="675" y1="905" x2="725" y2="905" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="733,905 725,900 725,910" fill="#800000" stroke="#800000" stroke-width="0.8" />
+<text x="747" y="908.5" class="pwr-text" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="start">3V3</text>
+<text x="980" y="730" class="block-title" font-family="Courier New, monospace" font-size="16px" font-weight="bold" fill="#000080" text-anchor="middle">LED</text>
+<line x1="980" y1="758" x2="980" y2="775" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="980,750 975,758 985,758" fill="#800000" stroke="#800000" stroke-width="0.8" />
+<text x="980" y="746" class="pwr-text" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="middle">3V3</text>
+<line x1="980" y1="775" x2="980" y2="781" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polyline points="980,781 985,784 975,790 985,796 975,802 985,808 980,811" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="980" y1="811" x2="980" y2="817" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="972" y="793" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080" text-anchor="end">R3</text>
+<text x="972" y="805" class="comp-val" font-family="Arial, Helvetica, sans-serif" font-size="9.5px" font-weight="bold" fill="#000080" text-anchor="end">10K</text>
+<line x1="980" y1="817" x2="980" y2="840" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="970,840 990,840 980,852" fill="#0000FF" stroke="#000080" stroke-width="1" />
+<line x1="970" y1="852" x2="990" y2="852" stroke="#000080" stroke-width="1.8" />
+<line x1="989" y1="847" x2="998" y2="856" stroke="#000080" stroke-width="1.3" />
+<polygon points="998,856 994,853 996,851" fill="#000080" />
+<line x1="994" y1="843" x2="1003" y2="852" stroke="#000080" stroke-width="1.3" />
+<polygon points="1003,852 999,849 1001,847" fill="#000080" />
+<text x="966" y="848" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080" text-anchor="end">D3</text>
+<text x="1008" y="848" class="comp-val" font-family="Arial, Helvetica, sans-serif" font-size="9.5px" font-weight="bold" fill="#000080" text-anchor="start">BLUE</text>
+<line x1="980" y1="852" x2="980" y2="885" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="980" y1="885" x2="1055" y2="885" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1015" y="880" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="left">GPIO10</text>
+<line x1="1015" y1="882" x2="1051" y2="882" stroke="#800000" stroke-width="0.8" fill="none" />
+<line x1="1140" y1="540" x2="1215" y2="540" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1160" y="535" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="left">DTR</text>
+<line x1="1160" y1="537" x2="1178" y2="537" stroke="#800000" stroke-width="0.8" fill="none" />
+<line x1="1140" y1="630" x2="1215" y2="630" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1160" y="625" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="left">RTS</text>
+<line x1="1160" y1="627" x2="1178" y2="627" stroke="#800000" stroke-width="0.8" fill="none" />
+<circle cx="1215" cy="540" r="2.5" class="dot" fill="#000080" />
+<line x1="1215" y1="540" x2="1221" y2="540" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polyline points="1221,540 1224,535 1230,545 1236,535 1242,545 1248,535 1251,540" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1251" y1="540" x2="1257" y2="540" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1236" y="532" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080" text-anchor="middle">R2</text>
+<text x="1236" y="556" class="comp-val" font-family="Arial, Helvetica, sans-serif" font-size="9.5px" font-weight="bold" fill="#000080" text-anchor="middle">10K</text>
+<line x1="1257" y1="540" x2="1280" y2="540" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<circle cx="1215" cy="630" r="2.5" class="dot" fill="#000080" />
+<line x1="1215" y1="630" x2="1221" y2="630" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polyline points="1221,630 1224,625 1230,635 1236,625 1242,635 1248,625 1251,630" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1251" y1="630" x2="1257" y2="630" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1236" y="622" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080" text-anchor="middle">R4</text>
+<text x="1236" y="646" class="comp-val" font-family="Arial, Helvetica, sans-serif" font-size="9.5px" font-weight="bold" fill="#000080" text-anchor="middle">10K</text>
+<line x1="1257" y1="630" x2="1280" y2="630" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1215" y1="540" x2="1215" y2="580" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1215" y1="580" x2="1305" y2="580" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1305" y1="580" x2="1305" y2="615" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1215" y1="630" x2="1215" y2="590" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1215" y1="590" x2="1305" y2="590" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1305" y1="590" x2="1305" y2="555" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1280" y1="528" x2="1280" y2="552" stroke="#000080" stroke-width="2.2" />
+<line x1="1280" y1="534" x2="1305" y2="522" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1305" y1="522" x2="1305" y2="505" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1305" y1="505" x2="1355" y2="505" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1320" y="500" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="left">EN</text>
+<line x1="1320" y1="502" x2="1332" y2="502" stroke="#800000" stroke-width="0.8" fill="none" />
+<line x1="1280" y1="546" x2="1305" y2="555" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="1304,555 1292,546 1296,558" fill="#000080" stroke="#000080" stroke-width="0.5" />
+<text x="1315" y="543" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080">Q1 8050 NPN</text>
+<line x1="1280" y1="618" x2="1280" y2="642" stroke="#000080" stroke-width="2.2" />
+<line x1="1280" y1="624" x2="1305" y2="615" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="1304,615 1292,624 1296,612" fill="#000080" stroke="#000080" stroke-width="0.5" />
+<line x1="1280" y1="636" x2="1305" y2="648" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1305" y1="648" x2="1305" y2="665" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1305" y1="665" x2="1355" y2="665" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1320" y="660" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="left">GPIO0</text>
+<line x1="1320" y1="662" x2="1350" y2="662" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="1315" y="633" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080">Q2 8050 NPN</text>
+<rect x="1200" y="200" width="170" height="160" class="comp-box" fill="#FFFFE6" stroke="#000000" stroke-width="1.2" />
+<text x="1185" y="192" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080">U1</text>
+<text x="1285.0" y="284.0" class="comp-name" font-family="Arial, Helvetica, sans-serif" font-size="14px" font-weight="bold" fill="#000000" text-anchor="middle" dominant-baseline="middle">CH343P</text>
+<text x="1240" y="220" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 1240,220)" text-anchor="end">DTR</text>
+<text x="1236" y="196" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">12</text>
+<line x1="1240" y1="160" x2="1240" y2="200" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1243" y="156" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(-90 1243,156)" text-anchor="start">DTR</text>
+<line x1="1238" y1="156" x2="1238" y2="139.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="1275" y="220" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 1275,220)" text-anchor="end">DCD</text>
+<text x="1271" y="196" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">11</text>
+<line x1="1275" y1="160" x2="1275" y2="200" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1278" y="156" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(-90 1278,156)" text-anchor="start">DCD</text>
+<line x1="1273" y1="156" x2="1273" y2="139.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="1310" y="220" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 1310,220)" text-anchor="end">ACT#</text>
+<text x="1306" y="196" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">10</text>
+<line x1="1310" y1="160" x2="1310" y2="200" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1313" y="156" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(-90 1313,156)" text-anchor="start">ACT#</text>
+<line x1="1308" y1="156" x2="1308" y2="134.0" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="1345" y="220" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 1345,220)" text-anchor="end">VBUS</text>
+<text x="1341" y="196" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">9</text>
+<line x1="1345" y1="158" x2="1345" y2="200" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="1345,150 1340,158 1350,158" fill="#800000" stroke="#800000" stroke-width="0.8" />
+<text x="1345" y="146" class="pwr-text" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="middle">5V</text>
+<text x="1206" y="233.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">RTS</text>
+<text x="1196" y="226" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">13</text>
+<line x1="1155" y1="230" x2="1200" y2="230" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1151" y="233" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="end">RTS</text>
+<line x1="1151" y1="234.5" x2="1134.5" y2="234.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="1206" y="258.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">DSR</text>
+<text x="1196" y="251" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">14</text>
+<line x1="1155" y1="255" x2="1200" y2="255" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1151" y="258" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="end">DSR</text>
+<line x1="1151" y1="259.5" x2="1134.5" y2="259.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="1206" y="283.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">CTS</text>
+<text x="1196" y="276" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">15</text>
+<line x1="1155" y1="280" x2="1200" y2="280" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1151" y="283" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="end">CTS</text>
+<line x1="1151" y1="284.5" x2="1134.5" y2="284.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="1206" y="308.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">RI</text>
+<text x="1196" y="301" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">16</text>
+<line x1="1155" y1="305" x2="1200" y2="305" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1151" y="308" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="end">RI</text>
+<line x1="1151" y1="309.5" x2="1140.0" y2="309.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="1206" y="333.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">G</text>
+<text x="1196" y="326" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">17</text>
+<line x1="1185" y1="330" x2="1200" y2="330" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1185" y1="330" x2="1179" y2="330" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1179" y1="323" x2="1179" y2="337" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1175" y1="326" x2="1175" y2="334" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1171" y1="328" x2="1171" y2="332" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1167" y="333" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000080" text-anchor="end">GND</text>
+<text x="1364" y="233.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">UD-</text>
+<text x="1374" y="226" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">8</text>
+<line x1="1370" y1="230" x2="1395" y2="230" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="1395,225 1407,225 1410,230 1407,235 1395,235 1400,230" fill="#FFE6E6" stroke="#800000" stroke-width="0.9" />
+<text x="1415" y="233" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="start">USB_N</text>
+<text x="1364" y="258.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">UD+</text>
+<text x="1374" y="251" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">7</text>
+<line x1="1370" y1="255" x2="1395" y2="255" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="1395,250 1407,250 1410,255 1407,260 1395,260 1400,255" fill="#FFE6E6" stroke="#800000" stroke-width="0.9" />
+<text x="1415" y="258" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="start">USB_P</text>
+<text x="1364" y="283.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">V3</text>
+<text x="1374" y="276" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">6</text>
+<line x1="1370" y1="280" x2="1390" y2="280" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1390" y1="280" x2="1398" y2="280" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1398" y1="273" x2="1398" y2="287" class="wire-thick" stroke="#000080" stroke-width="1.5" fill="none" />
+<line x1="1402" y1="273" x2="1402" y2="287" class="wire-thick" stroke="#000080" stroke-width="1.5" fill="none" />
+<line x1="1402" y1="280" x2="1410" y2="280" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1400" y="270" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080" text-anchor="middle">C4</text>
+<text x="1400" y="297" class="comp-val" font-family="Arial, Helvetica, sans-serif" font-size="9.5px" font-weight="bold" fill="#000080" text-anchor="middle">0.1uF</text>
+<line x1="1410" y1="280" x2="1416" y2="280" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1416" y1="273" x2="1416" y2="287" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1420" y1="276" x2="1420" y2="284" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1424" y1="278" x2="1424" y2="282" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1428" y="283" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000080" text-anchor="start">GND</text>
+<text x="1364" y="308.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">TXD</text>
+<text x="1374" y="301" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">5</text>
+<line x1="1370" y1="305" x2="1420" y2="305" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1424" y="308" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="start">TXD0</text>
+<line x1="1424" y1="309.5" x2="1446.0" y2="309.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="1240" y="350" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 1240,350)" text-anchor="start">VIO</text>
+<text x="1236" y="372" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">1</text>
+<line x1="1240" y1="360" x2="1240" y2="390" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<circle cx="1240" cy="390" r="2.5" class="dot" fill="#000080" />
+<line x1="1240" y1="390" x2="1170" y2="390" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<circle cx="1170" cy="390" r="2.5" class="dot" fill="#000080" />
+<line x1="1170" y1="390" x2="1170" y2="378" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="1170,370 1165,378 1175,378" fill="#800000" stroke="#800000" stroke-width="0.8" />
+<text x="1170" y="366" class="pwr-text" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="middle">3V3</text>
+<line x1="1170" y1="390" x2="1170" y2="405" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1170" y1="405" x2="1170" y2="413" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1163" y1="413" x2="1177" y2="413" class="wire-thick" stroke="#000080" stroke-width="1.5" fill="none" />
+<line x1="1163" y1="417" x2="1177" y2="417" class="wire-thick" stroke="#000080" stroke-width="1.5" fill="none" />
+<line x1="1170" y1="417" x2="1170" y2="425" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1179" y="413" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080" text-anchor="start">C5</text>
+<text x="1179" y="423" class="comp-val" font-family="Arial, Helvetica, sans-serif" font-size="9.5px" font-weight="bold" fill="#000080" text-anchor="start">1uF</text>
+<line x1="1170" y1="425" x2="1170" y2="433" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1162" y1="433" x2="1178" y2="433" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1165" y1="437" x2="1175" y2="437" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1168" y1="441" x2="1172" y2="441" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1170" y="451" font-family="Arial, Helvetica, sans-serif" font-size="8.5px" font-weight="bold" fill="#000080" text-anchor="middle">GND</text>
+<text x="1275" y="350" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 1275,350)" text-anchor="start">GND</text>
+<text x="1271" y="372" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">2</text>
+<line x1="1275" y1="360" x2="1275" y2="385" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1275" y1="385" x2="1275" y2="393" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1267" y1="393" x2="1283" y2="393" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1270" y1="397" x2="1280" y2="397" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="1273" y1="401" x2="1277" y2="401" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1275" y="411" font-family="Arial, Helvetica, sans-serif" font-size="8.5px" font-weight="bold" fill="#000080" text-anchor="middle">GND</text>
+<text x="1310" y="350" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 1310,350)" text-anchor="start">VDD5</text>
+<text x="1306" y="372" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">3</text>
+<line x1="1310" y1="360" x2="1310" y2="390" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="1310,398 1305,390 1315,390" fill="#800000" stroke="#800000" stroke-width="0.8" />
+<text x="1310" y="412" class="pwr-text" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="middle">5V</text>
+<text x="1345" y="350" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 1345,350)" text-anchor="start">RXD</text>
+<text x="1341" y="372" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">4</text>
+<line x1="1345" y1="360" x2="1345" y2="390" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="1348" y="394" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(90 1348,394)" text-anchor="start">RXD0</text>
+<line x1="1343" y1="394" x2="1343" y2="416.0" stroke="#800000" stroke-width="0.8" fill="none" />
+<rect x="340" y="200" width="400" height="350" class="comp-box" fill="#FFFFE6" stroke="#000000" stroke-width="1.2" />
+<text x="540.0" y="375.0" class="comp-name" font-family="Arial, Helvetica, sans-serif" font-size="15px" font-weight="bold" fill="#000000" text-anchor="middle" dominant-baseline="middle">ESP32-PICO-D4</text>
+<text x="725" y="566" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080">U3</text>
+<text x="348" y="227.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">VDDA</text>
+<text x="336" y="223" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">1</text>
+<text x="348" y="252.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">LNA_IN</text>
+<text x="336" y="248" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">2</text>
+<text x="348" y="277.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">VDD3P3</text>
+<text x="336" y="273" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">3</text>
+<text x="348" y="302.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">VDD3P3</text>
+<text x="336" y="298" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">4</text>
+<text x="348" y="332.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">SENSOR_VP</text>
+<text x="336" y="328" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">5</text>
+<text x="348" y="357.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">SENSOR_CAPP</text>
+<text x="336" y="353" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">6</text>
+<text x="348" y="382.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">SENSOR_CAPN</text>
+<text x="336" y="378" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">7</text>
+<text x="348" y="407.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">SENSOR_VN</text>
+<text x="336" y="403" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">8</text>
+<text x="348" y="437.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">CHIP_PU</text>
+<text x="336" y="433" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">9</text>
+<text x="348" y="467.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">VDET_1</text>
+<text x="336" y="463" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">10</text>
+<text x="348" y="492.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">VDET_2</text>
+<text x="336" y="488" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">11</text>
+<text x="348" y="517.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000">32K_XP</text>
+<text x="336" y="513" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">12</text>
+<line x1="295" y1="225" x2="340" y2="225" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<circle cx="295" cy="225" r="2.5" class="dot" fill="#000080" />
+<line x1="295" y1="275" x2="340" y2="275" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<circle cx="295" cy="275" r="2.5" class="dot" fill="#000080" />
+<line x1="295" y1="300" x2="340" y2="300" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="295" y1="148" x2="295" y2="300" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="295,140 290,148 300,148" fill="#800000" stroke="#800000" stroke-width="0.8" />
+<text x="295" y="136" class="pwr-text" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="middle">3V3</text>
+<circle cx="295" cy="148" r="2.5" class="dot" fill="#000080" />
+<line x1="150" y1="148" x2="295" y2="148" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<circle cx="160" cy="148" r="2.5" class="dot" fill="#000080" />
+<circle cx="200" cy="148" r="2.5" class="dot" fill="#000080" />
+<circle cx="240" cy="148" r="2.5" class="dot" fill="#000080" />
+<line x1="160" y1="148" x2="160" y2="156" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="153" y1="156" x2="167" y2="156" class="wire-thick" stroke="#000080" stroke-width="1.5" fill="none" />
+<line x1="153" y1="160" x2="167" y2="160" class="wire-thick" stroke="#000080" stroke-width="1.5" fill="none" />
+<line x1="160" y1="160" x2="160" y2="168" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="169" y="156" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080" text-anchor="start">C6</text>
+<text x="169" y="166" class="comp-val" font-family="Arial, Helvetica, sans-serif" font-size="9.5px" font-weight="bold" fill="#000080" text-anchor="start">1uF</text>
+<line x1="200" y1="148" x2="200" y2="156" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="193" y1="156" x2="207" y2="156" class="wire-thick" stroke="#000080" stroke-width="1.5" fill="none" />
+<line x1="193" y1="160" x2="207" y2="160" class="wire-thick" stroke="#000080" stroke-width="1.5" fill="none" />
+<line x1="200" y1="160" x2="200" y2="168" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="209" y="156" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080" text-anchor="start">C1</text>
+<text x="209" y="166" class="comp-val" font-family="Arial, Helvetica, sans-serif" font-size="9.5px" font-weight="bold" fill="#000080" text-anchor="start">10uF</text>
+<line x1="240" y1="148" x2="240" y2="156" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="233" y1="156" x2="247" y2="156" class="wire-thick" stroke="#000080" stroke-width="1.5" fill="none" />
+<line x1="233" y1="160" x2="247" y2="160" class="wire-thick" stroke="#000080" stroke-width="1.5" fill="none" />
+<line x1="240" y1="160" x2="240" y2="168" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="249" y="156" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080" text-anchor="start">C2</text>
+<text x="249" y="166" class="comp-val" font-family="Arial, Helvetica, sans-serif" font-size="9.5px" font-weight="bold" fill="#000080" text-anchor="start">0.1uF</text>
+<line x1="160" y1="168" x2="240" y2="168" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<circle cx="200" cy="168" r="2.5" class="dot" fill="#000080" />
+<line x1="200" y1="168" x2="200" y2="176" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="192" y1="176" x2="208" y2="176" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="195" y1="180" x2="205" y2="180" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="198" y1="184" x2="202" y2="184" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="200" y="194" font-family="Arial, Helvetica, sans-serif" font-size="8.5px" font-weight="bold" fill="#000080" text-anchor="middle">GND</text>
+<line x1="225" y1="250" x2="340" y2="250" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="225" y1="250" x2="225" y2="240" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="225,240 217,226 233,226" fill="none" stroke="#000080" stroke-width="1.2" />
+<line x1="217" y1="226" x2="233" y2="226" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="225" y="222" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080" text-anchor="middle">E1</text>
+<text x="213" y="234" class="comp-val" font-family="Arial, Helvetica, sans-serif" font-size="9.5px" font-weight="bold" fill="#000080" text-anchor="end">Antenna</text>
+<line x1="250" y1="330" x2="340" y2="330" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="246" y="333" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="end">SENSOR_VP</text>
+<line x1="246" y1="334.5" x2="196.5" y2="334.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<line x1="250" y1="355" x2="340" y2="355" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="246" y="358" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="end">GPIO37</text>
+<line x1="246" y1="359.5" x2="213.0" y2="359.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<line x1="250" y1="380" x2="340" y2="380" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="246" y="383" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="end">GPIO38</text>
+<line x1="246" y1="384.5" x2="213.0" y2="384.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<line x1="250" y1="405" x2="340" y2="405" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="246" y="408" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="end">SENSOR_VN</text>
+<line x1="246" y1="409.5" x2="196.5" y2="409.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<line x1="150" y1="435" x2="340" y2="435" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<circle cx="150" cy="435" r="2.5" class="dot" fill="#000080" />
+<circle cx="250" cy="435" r="2.5" class="dot" fill="#000080" />
+<text x="250" y="430" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="left">EN</text>
+<line x1="250" y1="432" x2="262" y2="432" stroke="#800000" stroke-width="0.8" fill="none" />
+<line x1="150" y1="360" x2="150" y2="366" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polyline points="150,366 155,369 145,375 155,381 145,387 155,393 150,396" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="150" y1="396" x2="150" y2="402" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="142" y="378" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080" text-anchor="end">R1</text>
+<text x="142" y="390" class="comp-val" font-family="Arial, Helvetica, sans-serif" font-size="9.5px" font-weight="bold" fill="#000080" text-anchor="end">10K</text>
+<line x1="150" y1="402" x2="150" y2="435" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="150" y1="360" x2="150" y2="338" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="150,330 145,338 155,338" fill="#800000" stroke="#800000" stroke-width="0.8" />
+<text x="150" y="326" class="pwr-text" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="middle">3V3</text>
+<line x1="150" y1="435" x2="150" y2="470" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="150" y1="470" x2="150" y2="478" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="143" y1="478" x2="157" y2="478" class="wire-thick" stroke="#000080" stroke-width="1.5" fill="none" />
+<line x1="143" y1="482" x2="157" y2="482" class="wire-thick" stroke="#000080" stroke-width="1.5" fill="none" />
+<line x1="150" y1="482" x2="150" y2="490" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="159" y="478" class="comp-ref" font-family="Arial, Helvetica, sans-serif" font-size="11px" font-weight="bold" fill="#000080" text-anchor="start">C3</text>
+<text x="159" y="488" class="comp-val" font-family="Arial, Helvetica, sans-serif" font-size="9.5px" font-weight="bold" fill="#000080" text-anchor="start">1uF</text>
+<line x1="150" y1="490" x2="150" y2="498" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="142" y1="498" x2="158" y2="498" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="145" y1="502" x2="155" y2="502" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="148" y1="506" x2="152" y2="506" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="150" y="516" font-family="Arial, Helvetica, sans-serif" font-size="8.5px" font-weight="bold" fill="#000080" text-anchor="middle">GND</text>
+<line x1="250" y1="465" x2="340" y2="465" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="246" y="468" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="end">GPIO34</text>
+<line x1="246" y1="469.5" x2="213.0" y2="469.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<line x1="250" y1="490" x2="340" y2="490" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="246" y="493" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="end">GPIO35</text>
+<line x1="246" y1="494.5" x2="213.0" y2="494.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<line x1="250" y1="515" x2="340" y2="515" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="246" y="518" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="end">GPIO32</text>
+<line x1="246" y1="519.5" x2="213.0" y2="519.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="385" y="215" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 385,215)" text-anchor="end">GND</text>
+<text x="381" y="194" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">49</text>
+<line x1="385" y1="160" x2="385" y2="200" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="377" y1="160" x2="393" y2="160" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="380" y1="156" x2="390" y2="156" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="383" y1="152" x2="387" y2="152" class="gnd-sym" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="385" y="147" font-family="Arial, Helvetica, sans-serif" font-size="8.5px" font-weight="bold" fill="#000080" text-anchor="middle">GND</text>
+<text x="419" y="215" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 419,215)" text-anchor="end">CAP1_NC</text>
+<text x="415" y="194" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">48</text>
+<line x1="419" y1="180" x2="419" y2="200" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="441" y="215" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 441,215)" text-anchor="end">CAP2_NC</text>
+<text x="437" y="194" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">47</text>
+<line x1="441" y1="180" x2="441" y2="200" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="463" y="215" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 463,215)" text-anchor="end">VDDA</text>
+<text x="459" y="194" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">46</text>
+<line x1="463" y1="148" x2="463" y2="200" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="463,140 458,148 468,148" fill="#800000" stroke="#800000" stroke-width="0.8" />
+<text x="463" y="136" class="pwr-text" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="middle">3V3</text>
+<text x="485" y="215" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 485,215)" text-anchor="end">XTAL_P_NC</text>
+<text x="481" y="194" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">45</text>
+<line x1="485" y1="180" x2="485" y2="200" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="507" y="215" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 507,215)" text-anchor="end">XTAL_N_NC</text>
+<text x="503" y="194" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">44</text>
+<line x1="507" y1="180" x2="507" y2="200" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="529" y="215" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 529,215)" text-anchor="end">VDDA</text>
+<text x="525" y="194" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">43</text>
+<line x1="529" y1="148" x2="529" y2="200" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="529,140 524,148 534,148" fill="#800000" stroke="#800000" stroke-width="0.8" />
+<text x="529" y="136" class="pwr-text" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="middle">3V3</text>
+<text x="551" y="215" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 551,215)" text-anchor="end">GPIO21</text>
+<text x="547" y="194" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">42</text>
+<line x1="551" y1="150" x2="551" y2="200" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="554" y="146" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(-90 554,146)" text-anchor="start">GPIO21</text>
+<line x1="549" y1="146" x2="549" y2="113.0" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="573" y="215" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 573,215)" text-anchor="end">U0TXD</text>
+<text x="569" y="194" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">41</text>
+<line x1="573" y1="150" x2="573" y2="200" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="576" y="146" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(-90 576,146)" text-anchor="start">TXD0</text>
+<line x1="571" y1="146" x2="571" y2="124.0" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="595" y="215" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 595,215)" text-anchor="end">U0RXD</text>
+<text x="591" y="194" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">40</text>
+<line x1="595" y1="150" x2="595" y2="200" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="598" y="146" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(-90 598,146)" text-anchor="start">RXD0</text>
+<line x1="593" y1="146" x2="593" y2="124.0" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="617" y="215" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 617,215)" text-anchor="end">GPIO22</text>
+<text x="613" y="194" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">39</text>
+<line x1="617" y1="150" x2="617" y2="200" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="620" y="146" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(-90 620,146)" text-anchor="start">GPIO22</text>
+<line x1="615" y1="146" x2="615" y2="113.0" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="639" y="215" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 639,215)" text-anchor="end">GPIO19</text>
+<text x="635" y="194" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">38</text>
+<line x1="639" y1="150" x2="639" y2="200" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="642" y="146" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(-90 642,146)" text-anchor="start">GPIO19</text>
+<line x1="637" y1="146" x2="637" y2="113.0" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="661" y="215" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 661,215)" text-anchor="end">VDD3P3_CPU</text>
+<text x="657" y="194" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">37</text>
+<line x1="661" y1="148" x2="661" y2="200" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="661,140 656,148 666,148" fill="#800000" stroke="#800000" stroke-width="0.8" />
+<text x="661" y="136" class="pwr-text" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="middle">3V3</text>
+<text x="732" y="227.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">GPIO23</text>
+<text x="744" y="223" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">36</text>
+<line x1="740" y1="225" x2="785" y2="225" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="789" y="228" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="start">GPIO23</text>
+<line x1="789" y1="229.5" x2="822.0" y2="229.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="732" y="252.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">GPIO18</text>
+<text x="744" y="248" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">35</text>
+<line x1="740" y1="250" x2="785" y2="250" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="789" y="253" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="start">GPIO18</text>
+<line x1="789" y1="254.5" x2="822.0" y2="254.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="732" y="277.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">GPIO5</text>
+<text x="744" y="273" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">34</text>
+<line x1="740" y1="275" x2="785" y2="275" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="789" y="278" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="start">GPIO5</text>
+<line x1="789" y1="279.5" x2="816.5" y2="279.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="732" y="307.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">SD_DATA_1(FLASH_SD1)</text>
+<text x="744" y="303" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">33</text>
+<line x1="740" y1="305" x2="785" y2="305" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="789" y="308" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="start">FLASH_SD1</text>
+<line x1="789" y1="309.5" x2="838.5" y2="309.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="732" y="337.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">SD_DATA_0(FLASH_SD3)</text>
+<text x="744" y="333" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">32</text>
+<line x1="740" y1="335" x2="785" y2="335" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="789" y="338" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="start">FLASH_SD3</text>
+<line x1="789" y1="339.5" x2="838.5" y2="339.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="732" y="367.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">SD_CLK(FLASH_CLK)</text>
+<text x="744" y="363" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">31</text>
+<line x1="740" y1="365" x2="785" y2="365" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="789" y="368" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="start">FLASH_CLK</text>
+<line x1="789" y1="369.5" x2="838.5" y2="369.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="732" y="397.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">SD_CMD(FLASH_SD2)</text>
+<text x="744" y="393" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">30</text>
+<line x1="740" y1="395" x2="785" y2="395" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="789" y="398" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="start">FLASH_SD2</text>
+<line x1="789" y1="399.5" x2="838.5" y2="399.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="732" y="427.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">SD_DATA_3/IO10</text>
+<text x="744" y="423" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">29</text>
+<line x1="740" y1="425" x2="785" y2="425" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="789" y="428" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="start">GPIO10</text>
+<line x1="789" y1="429.5" x2="822.0" y2="429.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="732" y="457.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">SD_DATA_2/IO9</text>
+<text x="744" y="453" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">28</text>
+<line x1="740" y1="455" x2="785" y2="455" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="789" y="458" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="start">GPIO9</text>
+<line x1="789" y1="459.5" x2="816.5" y2="459.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="732" y="487.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">IO17(FLASH_SD0)</text>
+<text x="744" y="483" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">27</text>
+<line x1="740" y1="485" x2="785" y2="485" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="789" y="488" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="start">FLASH_SD0</text>
+<line x1="789" y1="489.5" x2="838.5" y2="489.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="732" y="512.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">VDD_SDIO_NC</text>
+<text x="744" y="508" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">26</text>
+<line x1="740" y1="510" x2="760" y2="510" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="732" y="537.5" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" text-anchor="end">IO16(FLASH_CS)</text>
+<text x="744" y="533" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="start">25</text>
+<line x1="740" y1="535" x2="785" y2="535" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="789" y="538" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="start">FLASH_CS</text>
+<line x1="789" y1="539.5" x2="833.0" y2="539.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="419" y="538" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 419,538)" text-anchor="start">32K_XN</text>
+<text x="415" y="562" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">13</text>
+<line x1="419" y1="550" x2="419" y2="595" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="422" y="599" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(90 422,599)" text-anchor="start">GPIO33</text>
+<line x1="417" y1="599" x2="417" y2="632.0" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="441" y="538" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 441,538)" text-anchor="start">GPIO25</text>
+<text x="437" y="562" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">14</text>
+<line x1="441" y1="550" x2="441" y2="595" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="444" y="599" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(90 444,599)" text-anchor="start">GPIO25</text>
+<line x1="439" y1="599" x2="439" y2="632.0" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="463" y="538" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 463,538)" text-anchor="start">GPIO26</text>
+<text x="459" y="562" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">15</text>
+<line x1="463" y1="550" x2="463" y2="595" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="466" y="599" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(90 466,599)" text-anchor="start">GPIO26</text>
+<line x1="461" y1="599" x2="461" y2="632.0" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="485" y="538" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 485,538)" text-anchor="start">GPIO27</text>
+<text x="481" y="562" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">16</text>
+<line x1="485" y1="550" x2="485" y2="595" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="488" y="599" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(90 488,599)" text-anchor="start">GPIO27</text>
+<line x1="483" y1="599" x2="483" y2="632.0" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="507" y="538" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 507,538)" text-anchor="start">MTMS</text>
+<text x="503" y="562" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">17</text>
+<line x1="507" y1="550" x2="507" y2="595" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="510" y="599" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(90 510,599)" text-anchor="start">GPIO14</text>
+<line x1="505" y1="599" x2="505" y2="632.0" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="529" y="538" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 529,538)" text-anchor="start">MTDI</text>
+<text x="525" y="562" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">18</text>
+<line x1="529" y1="550" x2="529" y2="595" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="532" y="599" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(90 532,599)" text-anchor="start">GPIO12</text>
+<line x1="527" y1="599" x2="527" y2="632.0" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="551" y="538" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 551,538)" text-anchor="start">VDD3P3_RTC</text>
+<text x="547" y="562" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">19</text>
+<line x1="551" y1="550" x2="551" y2="655" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<line x1="551" y1="655" x2="695" y2="655" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<polygon points="703,655 695,650 695,660" fill="#800000" stroke="#800000" stroke-width="0.8" />
+<text x="717" y="658.5" class="pwr-text" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" text-anchor="start">3V3</text>
+<text x="573" y="538" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 573,538)" text-anchor="start">MTCK</text>
+<text x="569" y="562" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">20</text>
+<line x1="573" y1="550" x2="573" y2="595" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="576" y="599" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(90 576,599)" text-anchor="start">GPIO13</text>
+<line x1="571" y1="599" x2="571" y2="632.0" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="595" y="538" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 595,538)" text-anchor="start">MTDO</text>
+<text x="591" y="562" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">21</text>
+<line x1="595" y1="550" x2="595" y2="595" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="598" y="599" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(90 598,599)" text-anchor="start">GPIO15</text>
+<line x1="593" y1="599" x2="593" y2="632.0" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="617" y="538" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 617,538)" text-anchor="start">GPIO2</text>
+<text x="613" y="562" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">22</text>
+<line x1="617" y1="550" x2="617" y2="595" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="620" y="599" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(90 620,599)" text-anchor="start">GPIO2</text>
+<line x1="615" y1="599" x2="615" y2="626.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="639" y="538" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 639,538)" text-anchor="start">GPIO0</text>
+<text x="635" y="562" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">23</text>
+<line x1="639" y1="550" x2="639" y2="595" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="642" y="599" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(90 642,599)" text-anchor="start">GPIO0</text>
+<line x1="637" y1="599" x2="637" y2="626.5" stroke="#800000" stroke-width="0.8" fill="none" />
+<text x="661" y="538" class="pin-name" font-family="Arial, Helvetica, sans-serif" font-size="8px" font-weight="bold" fill="#000000" transform="rotate(-90 661,538)" text-anchor="start">GPIO4</text>
+<text x="657" y="562" class="pin-num" font-family="Arial, Helvetica, sans-serif" font-size="7.5px" fill="#000080" text-anchor="end">24</text>
+<line x1="661" y1="550" x2="661" y2="595" class="wire" stroke="#000080" stroke-width="1.2" fill="none" />
+<text x="664" y="599" class="net-label" font-family="Arial, Helvetica, sans-serif" font-size="9px" font-weight="bold" fill="#800000" transform="rotate(90 664,599)" text-anchor="start">GPIO4</text>
+<line x1="659" y1="599" x2="659" y2="626.5" stroke="#800000" stroke-width="0.8" fill="none" />
+</svg>
