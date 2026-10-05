@@ -11,12 +11,12 @@ enum LogLevel : uint8_t {
 struct LogEntry {
     uint32_t timestamp;  // Epoch seconds if NTP synced, else uptime seconds
     uint8_t  level;
-    char     msg[128];
+    char     msg[96];
 };
 
 class ConsoleLogger {
 public:
-    static const size_t MAX_LOG_ENTRIES = 80;
+    static const size_t MAX_LOG_ENTRIES = 40;
 
     ConsoleLogger();
     void log(LogLevel level, const char *fmt, ...);

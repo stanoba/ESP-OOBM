@@ -84,22 +84,24 @@ pio run -e esp32_pico_d4 -t upload
 ```
 
 ### 4. Initial Connection
-1. **Wi-Fi Mode**: Connect to **`ESP-OOBM-XXXXXX`** (Password: **`oobmadm123`**), open **`http://192.168.4.1/`** (User: **`admin`**, Pass: **`oobmadm123`**).
+1. **Wi-Fi Mode**: Connect to **`ESP-OOBM-XXXXXX`** (Password: **`oobmadm123`**), open **`https://192.168.4.1/`** or **`http://192.168.4.1/`** (User: **`admin`**, Pass: **`oobmadm123`**).
 
 ---
 
-## Default Security Credentials
+## Default Security & Network Credentials
 
-| Service / Interface | Username | Default Password | Notes |
-| :--- | :---: | :---: | :--- |
-| **Wi-Fi Access Point (AP)** | — | `oobmadm123` | WPA2-PSK Protected (SSID: `ESP-OOBM-XXXXXX`) |
-| **Web Dashboard / Portal** | `admin` | `oobmadm123` | Form Login + Session Cookie (Captive Portal safe) |
-| **WebTerminal (Port 81)** | `admin` | `oobmadm123` | Auto-authenticated when accessing via WebUI |
-| **Telnet Daemon (Port 23)** | — | `oobmadm123` | Password prompt on connection |
-| **Prometheus / REST API** | `admin` | `oobmadm123` | HTTP Basic Auth & Session Tokens |
+| Service / Interface | Protocol / Port | Username | Default Password | Notes |
+| :--- | :---: | :---: | :---: | :--- |
+| **Wi-Fi Access Point (AP)** | 802.11 b/g/n | — | `oobmadm123` | WPA2-PSK Protected (SSID: `ESP-OOBM-XXXXXX`) |
+| **Secure Web Management** | **HTTPS (Port 443)** | `admin` | `oobmadm123` | 25-Year ECDSA Wildcard TLS + Custom Certificate upload |
+| **Captive Portal / HTTP** | **HTTP (Port 80)** | `admin` | `oobmadm123` | Auto-redirects to HTTPS (Captive Portal safe) |
+| **WebSocket Console** | **WSS / WS (Port 443 / 81)** | `admin` | `oobmadm123` | WebSocket Secure bridge directly to UART0 |
+| **Telnet Daemon** | **Telnet (Port 23)** | — | `oobmadm123` | Password prompt on connection (RFC 854) |
+| **Prometheus / REST API** | **HTTPS / HTTP** | `admin` | `oobmadm123` | HTTP Basic Auth & Session Tokens |
 
 > [!TIP]
-> Credentials can be changed at any time in **Settings &rarr; Web & API Security** and **Telnet Console Service**.
+> For complete instructions on TLS certificates (OpenSSL, Let's Encrypt DNS-01, root CA installation), see [`docs/tls-certificates.md`](docs/tls-certificates.md).
+> Credentials and certificates can be changed at any time in **Settings &rarr; 🔐 TLS / HTTPS Security & Certificates**.
 
 ---
 

@@ -15,6 +15,7 @@
 #include "WebTerminal.h"
 #include "MndpDiscovery.h"
 #include "WebPortal.h"
+#include "TlsManager.h"
 
 // =============================================================================
 // Global State & Instances
@@ -172,13 +173,17 @@ void setup() {
     // Initialize Wi-Fi
     setupWiFi(preferences);
 
+    // Initialize TLS Certificate Manager (SPIFFS / Flash Default)
+    tlsManager.begin();
+
     // Initialize Hostname & mDNS
     String hostname = getDeviceHostname(preferences);
     if (MDNS.begin(hostname.c_str())) {
         MDNS.addService("http", "tcp", HTTP_PORT);
+        MDNS.addService("https", "tcp", HTTPS_PORT);
         MDNS.addService("telnet", "tcp", TELNET_PORT);
         MDNS.addService("oobm", "tcp", WEBSOCKET_PORT);
-        logger.logInfo("mDNS responder started: http://%s.local", hostname.c_str());
+        logger.logInfo("mDNS responder started: https://%s.local", hostname.c_str());
     }
 
     // Initialize ArduinoOTA
@@ -198,7 +203,7 @@ void setup() {
     // Initialize MNDP Discovery
     mndpDiscovery.begin(preferences);
 
-    // Initialize Web Portal & HTTP Routes
+    // Initialize Web Portal & HTTP/HTTPS Routes
     portal.begin();
 
     logger.logInfo("System ready. Listening for incoming connections.");
@@ -208,16 +213,19 @@ void setup() {
 // Main Loop
 // =============================================================================
 void loop() {
+    uint64_t loopStartUs = esp_timer_get_time();
+
     // 1. Drain Hardware UART into static ring buffer
     serialBridge.loop();
 
-    // 2. Broadcast incoming Serial bytes to active WebSocket and Telnet clients
+    // 2. Broadcast incoming Serial bytes to active WebSocket, WSS, and Telnet clients
     size_t avail = serialBridge.available();
     if (avail > 0) {
         uint8_t streamBuf[256];
         size_t readLen = serialBridge.readBytes(streamBuf, sizeof(streamBuf));
         if (readLen > 0) {
             webTerminal.broadcast(streamBuf, readLen);
+            portal.broadcastWs(streamBuf, readLen);
             telnetServer.broadcast(streamBuf, readLen);
         }
     }
@@ -246,5 +254,8 @@ void loop() {
     // 5. Update Status LED
     updateLed();
 
-    yield();
+    uint64_t loopEndUs = esp_timer_get_time();
+    SystemStats::recordLoopActivity((uint32_t)(loopEndUs - loopStartUs));
+
+    delay(1);
 }

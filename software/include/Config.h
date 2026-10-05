@@ -32,14 +32,15 @@ void setLedWifi(bool on);
 #define DEFAULT_PARITY              0    // 0 = None, 1 = Odd, 2 = Even
 #define DEFAULT_STOP_BITS           1
 
-#define SERIAL_RX_RING_BUFFER_SIZE  8192
-#define SERIAL_TX_RING_BUFFER_SIZE  2048
+#define SERIAL_RX_RING_BUFFER_SIZE  4096
+#define SERIAL_TX_RING_BUFFER_SIZE  1024
 #define SERIAL_FLUSH_INTERVAL_MS    5    // Coalescing debounce for network packets
 
 // =============================================================================
 // Network & Protocol Ports
 // =============================================================================
 #define HTTP_PORT                   80
+#define HTTPS_PORT                  443
 #define WEBSOCKET_PORT              81
 #define TELNET_PORT                 23
 #define DNS_PORT                    53
@@ -86,6 +87,7 @@ void setLedWifi(bool on);
 #define NVS_KEY_AUTH_EN             "auth_en"
 #define NVS_KEY_AUTH_USER           "auth_user"
 #define NVS_KEY_AUTH_PASS           "auth_pass"
+#define NVS_KEY_HTTPS_REDIRECT      "https_redir"
 
 // Serial Bridge
 #define NVS_KEY_SER_BAUD            "ser_baud"
