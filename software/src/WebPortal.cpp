@@ -95,9 +95,14 @@ html.light .btn-outline:hover{background:#e2e8f0;border-color:var(--navy);color:
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;}
 .form-group{display:flex;flex-direction:column;gap:6px;min-width:0;}
 .form-group label{font-size:0.84rem;font-weight:600;color:var(--muted);}
-.form-control{padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.88rem;outline:none;transition:border-color 0.15s;min-width:0;box-sizing:border-box;}
+.form-control{width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.88rem;outline:none;transition:border-color 0.15s;min-width:0;box-sizing:border-box;}
 .form-control:focus{border-color:var(--navy);}
 .switch-label{display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;font-size:0.88rem;font-weight:500;}
+.pwd-wrap{position:relative;display:flex;align-items:center;width:100%;box-sizing:border-box;}
+.pwd-wrap .form-control{width:100%!important;flex:1 1 100%;padding-right:38px;}
+.pwd-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;padding:4px;cursor:pointer;color:var(--muted);display:inline-flex;align-items:center;justify-content:center;border-radius:4px;transition:color 0.15s;z-index:2;}
+.pwd-toggle:hover{color:var(--text);}
+.pwd-toggle:focus{outline:none;color:var(--navy);}
 
 .term-container{background:#000000;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:Consolas,Courier,monospace;font-size:0.92rem;color:#e2e8f0;height:calc(100vh - 280px);min-height:360px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;outline:none;box-shadow:inset 0 2px 8px rgba(0,0,0,0.6);line-height:1.35;}
 .term-cursor{display:inline-block;min-width:8px;background:#38bdf8;color:#000000!important;border-radius:1px;animation:term-blink 1s steps(2,start) infinite;}
@@ -175,7 +180,31 @@ function showToast(msg, isErr){
   t.style.display = 'block';
   setTimeout(function(){ t.style.display = 'none'; }, 3500);
 }
+
+function togglePassword(btn){
+  var wrap = btn.closest('.pwd-wrap');
+  if(!wrap) return;
+  var input = wrap.querySelector('input');
+  if(!input) return;
+  var open = btn.querySelector('.eye-open');
+  var closed = btn.querySelector('.eye-closed');
+  if(input.type === 'password'){
+    input.type = 'text';
+    if(open) open.style.display = 'none';
+    if(closed) closed.style.display = 'block';
+  } else {
+    input.type = 'password';
+    if(open) open.style.display = 'block';
+    if(closed) closed.style.display = 'none';
+  }
+}
 )rawliteral";
+
+static const char PWD_EYE_TOGGLE_HTML[] PROGMEM = 
+"<button type=\"button\" class=\"pwd-toggle\" onclick=\"togglePassword(this)\" title=\"Toggle password visibility\" tabindex=\"-1\">"
+"<svg class=\"eye-open\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>"
+"<svg class=\"eye-closed\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"display:none;\"><path d=\"M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24\"/><line x1=\"1\" y1=\"1\" x2=\"23\" y2=\"23\"/></svg>"
+"</button>";
 
 // =============================================================================
 // Constructor & Initialization
@@ -1247,7 +1276,9 @@ void WebPortal::handleSettings() {
     c4 += "      <div class=\"form-group\">\n";
     c4 += "        <label class=\"switch-label\" style=\"margin-top:24px;\"><input type=\"checkbox\" name=\"tel_auth\" value=\"1\" " + String(telnetServer.isAuthRequired() ? "checked " : "") + "> Require Telnet Password</label>\n";
     c4 += "      </div>\n";
-    c4 += "      <div class=\"form-group\"><label>Telnet Password:</label><input type=\"password\" name=\"tel_pass\" placeholder=\"Leave blank to keep\" class=\"form-control\"></div>\n";
+    c4 += "      <div class=\"form-group\"><label>Telnet Password:</label>\n";
+    c4 += "        <div class=\"pwd-wrap\"><input type=\"password\" name=\"tel_pass\" value=\"" + _prefs.getString(NVS_KEY_TELNET_PASS, DEFAULT_TELNET_PASS) + "\" placeholder=\"Telnet Password\" class=\"form-control\">" + String(FPSTR(PWD_EYE_TOGGLE_HTML)) + "</div>\n";
+    c4 += "      </div>\n";
     c4 += "    </div>\n";
     c4 += "  </div>\n";
 
@@ -1259,7 +1290,9 @@ void WebPortal::handleSettings() {
     c4 += "    </label>\n";
     c4 += "    <div class=\"form-grid\">\n";
     c4 += "      <div class=\"form-group\"><label>Admin Username:</label><input type=\"text\" name=\"auth_usr\" value=\"" + String(_authUser) + "\" class=\"form-control\"></div>\n";
-    c4 += "      <div class=\"form-group\"><label>Admin Password:</label><input type=\"password\" name=\"auth_pwd\" placeholder=\"Leave blank to keep\" class=\"form-control\"></div>\n";
+    c4 += "      <div class=\"form-group\"><label>Admin Password:</label>\n";
+    c4 += "        <div class=\"pwd-wrap\"><input type=\"password\" name=\"auth_pwd\" value=\"" + String(_authPass) + "\" placeholder=\"Admin Password\" class=\"form-control\">" + String(FPSTR(PWD_EYE_TOGGLE_HTML)) + "</div>\n";
+    c4 += "      </div>\n";
     c4 += "    </div>\n";
     c4 += "  </div>\n";
 
@@ -1320,7 +1353,9 @@ void WebPortal::handleWifiPage() {
     streamHeader("settings", "Reconfigure WiFi");
 
     String staSsid = _prefs.getString(NVS_KEY_WIFI_SSID, "");
+    String staPass = _prefs.getString(NVS_KEY_WIFI_PASS, "");
     String apSsid = _prefs.getString(NVS_KEY_AP_SSID, "");
+    String apPass = _prefs.getString(NVS_KEY_AP_PASS, AP_DEFAULT_PASSWORD);
     if (apSsid.length() == 0) {
         String mac = WiFi.macAddress();
         mac.replace(":", "");
@@ -1351,7 +1386,9 @@ void WebPortal::handleWifiPage() {
     w += "    </div>\n";
     w += "    <div class=\"form-grid\">\n";
     w += "      <div class=\"form-group\"><label>Network SSID:</label><input type=\"text\" name=\"sta_ssid\" id=\"sta_ssid\" value=\"" + staSsid + "\" placeholder=\"Enter Wi-Fi SSID\" class=\"form-control\"></div>\n";
-    w += "      <div class=\"form-group\"><label>Wi-Fi Password:</label><input type=\"password\" name=\"sta_pass\" id=\"sta_pass\" placeholder=\"WPA/WPA2 Password\" class=\"form-control\"></div>\n";
+    w += "      <div class=\"form-group\"><label>Wi-Fi Password:</label>\n";
+    w += "        <div class=\"pwd-wrap\"><input type=\"password\" name=\"sta_pass\" id=\"sta_pass\" value=\"" + staPass + "\" placeholder=\"WPA/WPA2 Password\" class=\"form-control\">" + String(FPSTR(PWD_EYE_TOGGLE_HTML)) + "</div>\n";
+    w += "      </div>\n";
     w += "    </div>\n";
     w += "  </div>\n";
 
@@ -1359,7 +1396,9 @@ void WebPortal::handleWifiPage() {
     w += "    <h3 style=\"color:var(--navy);\">2. Access Point (AP) Settings</h3>\n";
     w += "    <div class=\"form-grid\">\n";
     w += "      <div class=\"form-group\"><label>AP SSID:</label><input type=\"text\" name=\"ap_ssid\" value=\"" + apSsid + "\" placeholder=\"ESP-OOBM-XXXXXX\" class=\"form-control\"></div>\n";
-    w += "      <div class=\"form-group\"><label>AP Password (Empty = Open):</label><input type=\"password\" name=\"ap_pass\" placeholder=\"Optional AP Password\" class=\"form-control\"></div>\n";
+    w += "      <div class=\"form-group\"><label>AP Password (Empty = Open):</label>\n";
+    w += "        <div class=\"pwd-wrap\"><input type=\"password\" name=\"ap_pass\" value=\"" + apPass + "\" placeholder=\"Optional AP Password\" class=\"form-control\">" + String(FPSTR(PWD_EYE_TOGGLE_HTML)) + "</div>\n";
+    w += "      </div>\n";
     w += "      <div class=\"form-group\"><label>AP Channel:</label>\n";
     w += "        <select name=\"ap_chan\" class=\"form-control\">\n";
     w += "          <option value=\"1\" " + String(apChan == 1 ? "selected" : "") + ">Channel 1</option>\n";
@@ -1630,7 +1669,13 @@ void WebPortal::handleLoginPage() {
                                "</div>"
                                "<div class=\"form-group\" style=\"margin-bottom:18px;\">"
                                "  <label for=\"pwd\">Password</label>"
-                               "  <input type=\"password\" id=\"pwd\" class=\"form-control\" placeholder=\"••••••••\" autocomplete=\"current-password\" required>"
+                               "  <div class=\"pwd-wrap\">"
+                               "    <input type=\"password\" id=\"pwd\" class=\"form-control\" placeholder=\"••••••••\" autocomplete=\"current-password\" required>"
+                               "    <button type=\"button\" class=\"pwd-toggle\" onclick=\"togglePassword(this)\" title=\"Toggle password visibility\" tabindex=\"-1\">"
+                               "      <svg class=\"eye-open\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>"
+                               "      <svg class=\"eye-closed\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"display:none;\"><path d=\"M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24\"/><line x1=\"1\" y1=\"1\" x2=\"23\" y2=\"23\"/></svg>"
+                               "    </button>"
+                               "  </div>"
                                "</div>"
                                "<button type=\"submit\" id=\"btn_submit\" class=\"btn btn-primary\" style=\"width:100%;justify-content:center;padding:10px 16px;\">"
                                "  Sign In &rarr;"
