@@ -76,11 +76,15 @@ pio run -e esp32_pico_d4
 pio run -e esp32_pico_d4 -t upload
 ```
 
-### 3. Initial Wi-Fi Connection
-1. Insert dongle into any USB port (powers up in Standalone AP mode).
-2. Connect to Wi-Fi: **`ESP-OOBM-XXXXXX`** (Password: **`oobmadm123`**).
-3. Open browser: **`http://192.168.4.1/`** (or auto-redirects via Captive Portal).
-4. Log in with default credentials: User: **`admin`**, Password: **`oobmadm123`**.
+### 3. Factory Reset (If Access Lost)
+```powershell
+# Erase all flash memory and re-upload default firmware
+pio run -e esp32_pico_d4 -t erase
+pio run -e esp32_pico_d4 -t upload
+```
+
+### 4. Initial Connection
+1. **Wi-Fi Mode**: Connect to **`ESP-OOBM-XXXXXX`** (Password: **`oobmadm123`**), open **`http://192.168.4.1/`** (User: **`admin`**, Pass: **`oobmadm123`**).
 
 ---
 

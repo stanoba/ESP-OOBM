@@ -31,6 +31,13 @@ pio run -e esp32_pico_d4
 pio run -e esp32_pico_d4 -t upload
 ```
 
+### Factory Reset (Clear All Settings)
+```powershell
+# Erase all flash memory and reset to defaults
+pio run -e esp32_pico_d4 -t erase
+pio run -e esp32_pico_d4 -t upload
+```
+
 ---
 
 ## Related Documentation

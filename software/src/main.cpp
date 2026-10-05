@@ -76,15 +76,19 @@ void setupWiFi(Preferences &prefs) {
 
     // If AP SSID not set, generate default "ESP-OOBM-XXXXXX" from MAC
     if (apSsid.length() == 0) {
-        String mac = WiFi.macAddress();
-        mac.replace(":", "");
-        apSsid = String(AP_SSID_PREFIX) + mac.substring(mac.length() - 6);
+        uint8_t mac[6];
+        esp_read_mac(mac, ESP_MAC_WIFI_STA);
+        char suffix[8];
+        snprintf(suffix, sizeof(suffix), "%02X%02X%02X", mac[3], mac[4], mac[5]);
+        apSsid = String(AP_SSID_PREFIX) + suffix;
     }
 
     bool staConfigured = (staSsid.length() > 0);
 
     if (staConfigured) {
         WiFi.mode(WIFI_AP_STA);
+        WiFi.setSleep(false);
+
         if (!staDhcp) {
             IPAddress ip, gw, sn, dns;
             ip.fromString(prefs.getString(NVS_KEY_WIFI_IP, "192.168.1.50"));
@@ -97,10 +101,10 @@ void setupWiFi(Preferences &prefs) {
         logger.logInfo("Connecting to Station Wi-Fi: %s ...", staSsid.c_str());
         WiFi.begin(staSsid.c_str(), staPass.c_str());
 
-        // Wait up to 8s for STA connection
+        // Wait up to 5s for STA connection
         uint32_t startMs = millis();
-        while (WiFi.status() != WL_CONNECTED && (millis() - startMs < 8000)) {
-            delay(200);
+        while (WiFi.status() != WL_CONNECTED && (millis() - startMs < 5000)) {
+            delay(100);
             yield();
         }
 
@@ -114,12 +118,14 @@ void setupWiFi(Preferences &prefs) {
         }
     } else {
         WiFi.mode(WIFI_AP);
+        WiFi.setSleep(false);
     }
 
-    // Always start AP if not connected or if AP mode configured
+    // Always start AP
     WiFi.softAPConfig(IPAddress(AP_IP_ADDRESS), IPAddress(AP_IP_ADDRESS), IPAddress(AP_NETMASK));
-    WiFi.softAP(apSsid.c_str(), apPass.length() > 0 ? apPass.c_str() : nullptr, apChan, apHidden);
-    logger.logInfo("Access Point started! SSID: %s, IP: %s", apSsid.c_str(), WiFi.softAPIP().toString().c_str());
+    const char *pass = (apPass.length() >= 8) ? apPass.c_str() : nullptr;
+    WiFi.softAP(apSsid.c_str(), pass, apChan, apHidden);
+    logger.logInfo("Access Point started! SSID: %s, IP: %s (Channel: %u)", apSsid.c_str(), WiFi.softAPIP().toString().c_str(), apChan);
 }
 
 // =============================================================================

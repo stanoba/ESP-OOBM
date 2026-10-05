@@ -16,11 +16,11 @@ flowchart TD
 
     subgraph Core["Core Firmware Modules"]
         SB["SerialBridge<br/>Hardware FIFO & Ring Buffer"]
-        SYS["SystemStats<br/>CPU, Heap & RSSI Metrics"]
+        SYS["SystemStats<br/>CPU, Heap & RSSI State"]
         LOG["ConsoleLogger<br/>In-Memory Event Ring Buffer"]
     end
 
-    subgraph Daemons["Network Daemons & Protocols"]
+    subgraph Daemons["Network & Wireless Daemons"]
         WS["WebTerminal Server<br/>WebSocket (Port 81)"]
         TEL["Telnet Server<br/>RFC 854 (Port 23)"]
         WEB["Async WebPortal & REST API<br/>HTTP (Port 80)"]
@@ -37,7 +37,7 @@ flowchart TD
     SYS -->|"Telemetry"| WEB
     LOG -->|"System Events"| WEB
     NVS_FLASH <-->|"Persistent Config"| WEB
-    WIFI_RADIO <--> Daemons
+    WIFI_RADIO <--> WS & TEL & WEB & PROM & MNDP & DNS & OTA
 ```
 
 ---
@@ -87,7 +87,7 @@ spiffs,   data, spiffs,   0x3D0000,  0x30000,
 
 ## 4. Network Daemons & Services
 
-| Service | Protocol / Transport | Port | Authentication | Notes |
+| Service | Protocol / Transport | Port / Channel | Authentication | Notes |
 | :--- | :--- | :---: | :--- | :--- |
 | **Web Dashboard** | HTTP (1.1) | `80` | Form Login / Session Cookie | Responsive dashboard, logs, and configuration portal |
 | **WebTerminal** | WebSocket (Binary / Text) | `81` | Inherits Web Session Cookie | Full-duplex bidirectional ANSI serial console stream |
@@ -101,41 +101,41 @@ spiffs,   data, spiffs,   0x3D0000,  0x30000,
 
 ## 5. Non-Volatile Storage (NVS) Configuration Keys
 
-All settings are persisted across reboots in ESP32 NVS using the Arduino `Preferences` library (`NVS_NAMESPACE = "oobm"`):
+All settings are persisted across reboots in ESP32 NVS using the Arduino `Preferences` library (`NVS_NAMESPACE = "oobm_cfg"`):
 
 | NVS Key Constant | Key String | Data Type | Default Value | Description |
 | :--- | :--- | :---: | :--- | :--- |
-| `NVS_KEY_WIFI_SSID` | `"w_ssid"` | String | `""` | Station Wi-Fi network SSID |
-| `NVS_KEY_WIFI_PASS` | `"w_pass"` | String | `""` | Station Wi-Fi network WPA2 password |
-| `NVS_KEY_WIFI_DHCP` | `"w_dhcp"` | Bool | `true` | Use DHCP (`true`) or Static IP (`false`) |
-| `NVS_KEY_WIFI_IP` | `"w_ip"` | String | `"192.168.1.50"` | Static IP address (when DHCP disabled) |
-| `NVS_KEY_WIFI_GW` | `"w_gw"` | String | `"192.168.1.1"` | Gateway IP address |
-| `NVS_KEY_WIFI_SN` | `"w_sn"` | String | `"255.255.255.0"`| Subnet mask |
-| `NVS_KEY_WIFI_DNS` | `"w_dns"` | String | `"1.1.1.1"` | Primary DNS server |
+| `NVS_KEY_WIFI_SSID` | `"sta_ssid"` | String | `""` | Station Wi-Fi network SSID |
+| `NVS_KEY_WIFI_PASS` | `"sta_pass"` | String | `""` | Station Wi-Fi network WPA2 password |
+| `NVS_KEY_WIFI_DHCP` | `"sta_dhcp"` | Bool | `true` | Use DHCP (`true`) or Static IP (`false`) |
+| `NVS_KEY_WIFI_IP` | `"sta_ip"` | String | `"192.168.1.50"` | Static IP address (when DHCP disabled) |
+| `NVS_KEY_WIFI_GW` | `"sta_gw"` | String | `"192.168.1.1"` | Gateway IP address |
+| `NVS_KEY_WIFI_SN` | `"sta_sn"` | String | `"255.255.255.0"`| Subnet mask |
+| `NVS_KEY_WIFI_DNS` | `"sta_dns"` | String | `"1.1.1.1"` | Primary DNS server |
 | `NVS_KEY_AP_SSID` | `"ap_ssid"` | String | `"ESP-OOBM-XXXXXX"`| Fallback Access Point SSID (auto-generated from MAC) |
 | `NVS_KEY_AP_PASS` | `"ap_pass"` | String | `"oobmadm123"` | Fallback Access Point WPA2 passphrase |
 | `NVS_KEY_AP_CHAN` | `"ap_chan"` | UChar | `1` | Wi-Fi Access Point radio channel (1–13) |
-| `NVS_KEY_AP_HIDDEN` | `"ap_hid"` | Bool | `false` | Hide AP SSID beacon broadcast |
-| `NVS_KEY_AUTH_ENABLED`| `"auth_en"`| Bool | `true` | Enable Web Portal & API authentication |
-| `NVS_KEY_ADMIN_USER` | `"adm_usr"` | String | `"admin"` | Web Portal & REST API username |
-| `NVS_KEY_ADMIN_PASS` | `"adm_pwd"` | String | `"oobmadm123"` | Web Portal & REST API password |
+| `NVS_KEY_AP_HIDDEN` | `"ap_hidden"`| Bool | `false` | Hide AP SSID beacon broadcast |
+| `NVS_KEY_AUTH_EN` | `"auth_en"` | Bool | `true` | Enable Web Portal & API authentication |
+| `NVS_KEY_AUTH_USER` | `"auth_user"`| String | `"admin"` | Web Portal & REST API username |
+| `NVS_KEY_AUTH_PASS` | `"auth_pass"`| String | `"oobmadm123"` | Web Portal & REST API password |
 | `NVS_KEY_TELNET_EN` | `"tel_en"` | Bool | `true` | Enable standalone Telnet daemon on port 23 |
-| `NVS_KEY_TELNET_PASS` | `"tel_pwd"` | String | `"oobmadm123"` | Telnet login challenge password |
-| `NVS_KEY_BAUDRATE` | `"uart_br"` | UInt | `115200` | UART0 baud rate (300 to 921600 bps) |
-| `NVS_KEY_DATABITS` | `"uart_db"` | UChar | `8` | Data bits (5, 6, 7, 8) |
-| `NVS_KEY_PARITY` | `"uart_pr"` | UChar | `0` (None) | Parity (`0`=None, `1`=Odd, `2`=Even) |
-| `NVS_KEY_STOPBITS` | `"uart_sb"` | UChar | `1` | Stop bits (1, 2) |
-| `NVS_KEY_DEV_NAME` | `"dev_name"`| String | `"ESP-OOBM"` | mDNS and MNDP broadcast device hostname |
+| `NVS_KEY_TELNET_PASS` | `"tel_pass"`| String | `"oobmadm123"` | Telnet login challenge password |
+| `NVS_KEY_SER_BAUD` | `"ser_baud"` | UInt | `115200` | UART0 baud rate (300 to 921600 bps) |
+| `NVS_KEY_SER_DBITS` | `"ser_dbits"`| UChar | `8` | Data bits (7, 8) |
+| `NVS_KEY_SER_PARITY` | `"ser_parity"`| UChar | `0` (None) | Parity (`0`=None, `1`=Odd, `2`=Even) |
+| `NVS_KEY_SER_SBITS` | `"ser_sbits"`| UChar | `1` | Stop bits (1, 2) |
+| `NVS_KEY_HOSTNAME` | `"hostname"` | String | `"esp-oobm-XXXX"` | Device hostname for mDNS and MNDP |
 | `NVS_KEY_NTP_ENABLED` | `"ntp_en"` | Bool | `true` | Automatic SNTP time synchronization |
 | `NVS_KEY_NTP_SERVER` | `"ntp_srv"` | String | `"pool.ntp.org"` | Primary NTP server hostname |
-| `NVS_KEY_NTP_TZ_POSIX`| `"ntp_tzp"` | String | `"CET-1CEST,M3.5.0,M10.5.0/3"` | POSIX timezone string (Default: Europe/Bratislava) |
+| `NVS_KEY_NTP_TZ_POSIX`| `"ntp_tz"` | String | `"CET-1CEST,M3.5.0,M10.5.0/3"` | POSIX timezone string (Default: Europe/Bratislava) |
 
 ---
 
 ## 6. Building & Flashing
 
 ### Requirements
-* [PlatformIO Core (CLI)](https://docs.platformio.org/en/latest/core/index.html) or PlatformIO IDE (VS Code extension).
+* [PlatformIO Core (CLI)](https://docs.platformio.org/en/latest/core/index.html) or PlatformIO IDE.
 * Espressif 32 platform package (`^6.12.0`).
 
 ### Compilation & Flash Commands
@@ -154,8 +154,38 @@ pio device monitor -b 115200
 ```
 
 ### Over-The-Air (OTA) Updates
-1. **Web OTA**: Navigate to `http://192.168.4.1/update` in your browser and upload the compiled `.pio/build/esp32_pico_d4/firmware.bin`.
+1. **Web OTA**: Navigate to `http://192.168.4.1/update` in your browser and upload `.pio/build/esp32_pico_d4/firmware.bin`.
 2. **ArduinoOTA (CLI)**:
    ```powershell
    pio run -e esp32_pico_d4 -t upload --upload-port 192.168.1.150
    ```
+
+---
+
+## 7. Factory Reset & Emergency Recovery
+
+If configuration settings or administrative passwords are lost, the device can be returned to default factory settings using **PlatformIO** or **`esptool.py`** via USB without needing to press any hardware buttons.
+
+### Method 1: Full Flash Erase via PlatformIO (Recommended)
+This clears the entire flash chip (including all NVS preferences) and flashes a fresh build:
+```powershell
+cd software
+
+# 1. Erase all Flash memory
+pio run -e esp32_pico_d4 -t erase
+
+# 2. Upload fresh firmware
+pio run -e esp32_pico_d4 -t upload
+```
+
+### Method 2: Fast NVS Partition Erase via `esptool.py` (Preserves Firmware)
+To clear ONLY settings and passwords while keeping the existing firmware intact:
+```powershell
+python -m esptool --chip esp32 erase_region 0x9000 0x5000
+```
+
+### Post-Reset Default Credentials
+After a factory reset, the device boots in standalone Access Point mode:
+* **Wi-Fi SSID**: `ESP-OOBM-XXXXXX` (Password: `oobmadm123`)
+* **Web UI URL**: `http://192.168.4.1/` (User: `admin`, Password: `oobmadm123`)
+* **Telnet Console**: Port `23` (Password: `oobmadm123`)

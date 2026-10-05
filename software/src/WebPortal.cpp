@@ -80,7 +80,7 @@ html.light .badge-warn{background:#fef3c7;color:#b45309;border:1px solid #fde68a
 .badge-danger{background:#450a0a;color:#f87171;border:1px solid #dc2626;}
 html.light .badge-danger{background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;}
 
-.btn{padding:8px 16px;border-radius:6px;font-size:0.88rem;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:6px;border:none;cursor:pointer;transition:all 0.18s;}
+.btn{padding:8px 16px;border-radius:6px;font-size:0.88rem;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;cursor:pointer;transition:all 0.18s;white-space:nowrap;}
 .btn-primary{background:var(--navy);color:#ffffff;}
 .btn-primary:hover{background:#0369a1;color:#ffffff;transform:translateY(-1px);box-shadow:0 2px 6px rgba(2,132,199,0.35);}
 .btn-green{background:var(--green);color:#ffffff;}
@@ -93,9 +93,9 @@ html.light .btn-outline:hover{background:#e2e8f0;border-color:var(--navy);color:
 .btn-sm{padding:4px 10px;font-size:0.80rem;}
 
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;}
-.form-group{display:flex;flex-direction:column;gap:6px;}
+.form-group{display:flex;flex-direction:column;gap:6px;min-width:0;}
 .form-group label{font-size:0.84rem;font-weight:600;color:var(--muted);}
-.form-control{padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.88rem;outline:none;transition:border-color 0.15s;}
+.form-control{padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.88rem;outline:none;transition:border-color 0.15s;min-width:0;box-sizing:border-box;}
 .form-control:focus{border-color:var(--navy);}
 .switch-label{display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;font-size:0.88rem;font-weight:500;}
 
@@ -486,7 +486,7 @@ void WebPortal::handleRoot() {
     dHtml += "    <div style=\"margin-top:14px;\">\n";
     dHtml += "      <div class=\"stat-row\"><span class=\"stat-label\">TX Bytes Sent</span><span class=\"stat-val\" id=\"tx_bytes_val\">" + String(txBuf) + "</span></div>\n";
     dHtml += "      <div class=\"stat-row\"><span class=\"stat-label\">RX Overflows</span><span class=\"stat-val\" id=\"overflow_val\">" + String(stats.serialRxOverflow) + "</span></div>\n";
-    dHtml += "      <div class=\"stat-row\"><span class=\"stat-label\">Active Sessions</span><span class=\"stat-val\" id=\"sessions_val\">WS: " + String(stats.activeWsClients) + " | Tel: " + String(stats.activeTelnetClients) + "</span></div>\n";
+    dHtml += "      <div class=\"stat-row\"><span class=\"stat-label\">Active Sessions</span><span class=\"stat-val\" id=\"sessions_val\">WS: " + String(stats.activeWsClients) + " | Telnet: " + String(stats.activeTelnetClients) + "</span></div>\n";
     dHtml += "    </div>\n";
     dHtml += "  </div>\n";
 
@@ -573,8 +573,7 @@ void WebPortal::handleRoot() {
     dHtml += "  document.getElementById('baud_badge').innerText = d.baud + ' ' + d.framing;\n";
     dHtml += "  document.getElementById('rx_bytes_val').innerText = d.rx_bytes_str || (d.rx_bytes + ' B');\n";
     dHtml += "  document.getElementById('tx_bytes_val').innerText = d.tx_bytes_str || (d.tx_bytes + ' B');\n";
-    dHtml += "  document.getElementById('overflow_val').innerText = d.rx_overflow;\n";
-    dHtml += "  document.getElementById('sessions_val').innerText = 'WS: ' + d.active_ws + ' | Tel: ' + d.active_telnet;\n";
+    dHtml += "  document.getElementById('sessions_val').innerText = 'WS: ' + d.active_ws + ' | Telnet: ' + d.active_telnet;\n";
     dHtml += "  document.getElementById('net_mode_badge').innerText = d.net_mode;\n";
     dHtml += "  document.getElementById('ip_val').innerText = d.ip;\n";
     dHtml += "  document.getElementById('ssid_val').innerText = 'SSID: ' + (d.ssid || '(None)');\n";
@@ -1235,9 +1234,9 @@ void WebPortal::handleSettings() {
     c3 += "  </div>\n";
     _server.sendContent(c3);
 
-    // --- 5. TELNET SERVICE & 6. SECURITY CARDS ---
+    // --- 5. TELNET SERVICE ---
     String c4 = "";
-    c4.reserve(2500);
+    c4.reserve(4000);
     c4 += "  <div class=\"table-card\">\n";
     c4 += "    <h3 style=\"color:var(--navy);\">&#128268; Telnet Console Service (RFC 854)</h3>\n";
     c4 += "    <label style=\"display:flex;align-items:center;gap:8px;font-weight:600;font-size:0.9rem;margin-bottom:12px;\">\n";
@@ -1333,19 +1332,24 @@ void WebPortal::handleWifiPage() {
     bool mndpEn = _prefs.getBool(NVS_KEY_MNDP_EN, true);
 
     String w = "";
-    w.reserve(4000);
-    w += "<div style=\"margin-bottom:16px;\">\n";
+    w.reserve(4500);
+    w += "<div style=\"margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;\">\n";
     w += "  <h2 style=\"margin:0;font-size:1.25rem;\">&#128246; Reconfigure Wi-Fi Network</h2>\n";
+    w += "  <a href=\"/settings\" class=\"btn btn-outline btn-sm\">&larr; Back to Settings</a>\n";
     w += "</div>\n";
     w += "<form id=\"wifi_form\" onsubmit=\"saveWifi(event)\">\n";
     w += "  <div class=\"table-card\">\n";
     w += "    <h3 style=\"color:var(--navy);\">1. Station Mode (Connect to Existing Wi-Fi)</h3>\n";
-    w += "    <div class=\"form-grid\">\n";
-    w += "      <div class=\"form-group\"><label>Available Networks (Scanned):</label>\n";
-    w += "        <select id=\"scanned_ssid\" class=\"form-control\" onchange=\"selectSsid(this.value)\">\n";
-    w += "          <option value=\"\">-- Scanning nearby networks... --</option>\n";
+    w += "    <div style=\"margin-bottom:16px;\">\n";
+    w += "      <label style=\"font-size:0.84rem;font-weight:600;color:var(--muted);display:block;margin-bottom:6px;\">Available Networks (Scanned):</label>\n";
+    w += "      <div style=\"display:flex;gap:8px;flex-wrap:wrap;align-items:stretch;\">\n";
+    w += "        <select id=\"scanned_ssid\" class=\"form-control\" onchange=\"selectSsid(this.value)\" style=\"flex:1;min-width:200px;\">\n";
+    w += "          <option value=\"\">-- Click 'Scan Networks' to search --</option>\n";
     w += "        </select>\n";
+    w += "        <button type=\"button\" id=\"btn_scan\" class=\"btn btn-outline\" onclick=\"triggerScan()\" style=\"padding:8px 16px;flex-shrink:0;\">&#128269; <span>Scan Networks</span></button>\n";
     w += "      </div>\n";
+    w += "    </div>\n";
+    w += "    <div class=\"form-grid\">\n";
     w += "      <div class=\"form-group\"><label>Network SSID:</label><input type=\"text\" name=\"sta_ssid\" id=\"sta_ssid\" value=\"" + staSsid + "\" placeholder=\"Enter Wi-Fi SSID\" class=\"form-control\"></div>\n";
     w += "      <div class=\"form-group\"><label>Wi-Fi Password:</label><input type=\"password\" name=\"sta_pass\" id=\"sta_pass\" placeholder=\"WPA/WPA2 Password\" class=\"form-control\"></div>\n";
     w += "    </div>\n";
@@ -1377,18 +1381,46 @@ void WebPortal::handleWifiPage() {
     w += "</form>\n";
 
     w += "<script>\n";
-    w += "function selectSsid(v){ if(v) document.getElementById('sta_ssid').value = v; }\n";
-    w += "function loadScan(){\n";
-    w += "  fetch('/api/scan').then(r=>r.json()).then(d=>{\n";
-    w += "    var s = document.getElementById('scanned_ssid');\n";
-    w += "    s.innerHTML = '<option value=\"\">-- Select a network (' + d.length + ' found) --</option>';\n";
-    w += "    d.forEach(function(net){\n";
-    w += "      var opt = document.createElement('option');\n";
-    w += "      opt.value = net.ssid;\n";
-    w += "      opt.innerText = net.ssid + ' (' + net.rssi + ' dBm' + (net.secure ? ' \\u{1F512}' : '') + ')';\n";
-    w += "      s.appendChild(opt);\n";
-    w += "    });\n";
-    w += "  }).catch(()=>{});\n";
+    w += "function selectSsid(v){\n";
+    w += "  if(v){\n";
+    w += "    var sta = document.getElementById('sta_ssid');\n";
+    w += "    if(sta) sta.value = v;\n";
+    w += "    var pwd = document.getElementById('sta_pass');\n";
+    w += "    if(pwd) pwd.focus();\n";
+    w += "  }\n";
+    w += "}\n";
+    w += "var scanInterval = null;\n";
+    w += "function triggerScan(){\n";
+    w += "  var btn = document.getElementById('btn_scan');\n";
+    w += "  var s = document.getElementById('scanned_ssid');\n";
+    w += "  if(btn){ btn.disabled = true; btn.innerHTML = '&#9203; <span>Scanning...</span>'; }\n";
+    w += "  if(s){ s.innerHTML = '<option value=\"\">Scanning networks, please wait...</option>'; }\n";
+    w += "  function pollScan(){\n";
+    w += "    fetch('/api/scan').then(r=>r.json()).then(res=>{\n";
+    w += "      if(res.status === 'ready' && res.networks){\n";
+    w += "        if(scanInterval){ clearInterval(scanInterval); scanInterval = null; }\n";
+    w += "        if(btn){ btn.disabled = false; btn.innerHTML = '&#128260; <span>Rescan</span>'; }\n";
+    w += "        s.innerHTML = '<option value=\"\">-- Select a network (' + res.networks.length + ' found) --</option>';\n";
+    w += "        res.networks.forEach(function(net){\n";
+    w += "          var opt = document.createElement('option');\n";
+    w += "          opt.value = net.ssid;\n";
+    w += "          opt.innerText = net.ssid + ' (' + net.rssi + ' dBm' + (net.secure ? ' \\u{1F512}' : '') + ')';\n";
+    w += "          s.appendChild(opt);\n";
+    w += "        });\n";
+    w += "      }\n";
+    w += "    }).catch(function(){});\n";
+    w += "  }\n";
+    w += "  pollScan();\n";
+    w += "  if(!scanInterval){\n";
+    w += "    scanInterval = setInterval(pollScan, 1000);\n";
+    w += "    setTimeout(function(){\n";
+    w += "      if(scanInterval){\n";
+    w += "        clearInterval(scanInterval);\n";
+    w += "        scanInterval = null;\n";
+    w += "        if(btn){ btn.disabled = false; btn.innerHTML = '&#128269; <span>Scan Networks</span>'; }\n";
+    w += "      }\n";
+    w += "    }, 15000);\n";
+    w += "  }\n";
     w += "}\n";
     w += "function saveWifi(e){\n";
     w += "  e.preventDefault();\n";
@@ -1408,7 +1440,6 @@ void WebPortal::handleWifiPage() {
     w += "    setTimeout(function(){ location.href = '/'; }, 6000);\n";
     w += "  });\n";
     w += "}\n";
-    w += "loadScan();\n";
     w += "</script>\n";
 
     _server.sendContent(w);
@@ -1697,12 +1728,13 @@ void WebPortal::handleApiStatus() {
              (serialBridge.getParity() == 1 ? 'O' : (serialBridge.getParity() == 2 ? 'E' : 'N')),
              serialBridge.getStopBits());
 
-    char json[1200];
+    char json[1400];
     snprintf(json, sizeof(json),
              "{\"uptime_sec\":%u,\"uptime_str\":\"%s\",\"cpu_freq\":%u,\"free_heap\":%u,\"free_heap_str\":\"%s\","
              "\"min_free_heap\":%u,\"min_heap_str\":\"%s\",\"heap_frag\":%u,\"baud\":%u,\"framing\":\"%s\","
              "\"rx_bytes\":%u,\"rx_bytes_str\":\"%s\",\"tx_bytes\":%u,\"tx_bytes_str\":\"%s\",\"rx_overflow\":%u,"
-             "\"active_ws\":%u,\"active_telnet\":%u,\"net_mode\":\"%s\",\"ip\":\"%s\",\"ssid\":\"%s\",\"mac\":\"%s\","
+             "\"active_ws\":%u,\"active_telnet\":%u,"
+             "\"net_mode\":\"%s\",\"ip\":\"%s\",\"ssid\":\"%s\",\"mac\":\"%s\","
              "\"rssi\":%d,\"ap_clients\":%u,\"ntp_synced\":%s,\"time_str\":\"%s\",\"last_ntp_str\":\"%s\","
              "\"tz_city\":\"%s\",\"ntp_server\":\"%s\"}",
              stats.uptimeSeconds, uptimeBuf, stats.cpuFreqMhz, stats.freeHeapBytes, heapBuf,
@@ -1724,14 +1756,31 @@ void WebPortal::handleApiScan() {
         return;
     }
 
-    int n = WiFi.scanNetworks(false, true);
-    String json = "[";
-    for (int i = 0; i < n; ++i) {
-        if (i > 0) json += ",";
-        json += "{\"ssid\":\"" + WiFi.SSID(i) + "\",\"rssi\":" + String(WiFi.RSSI(i)) + ",\"secure\":" + String(WiFi.encryptionType(i) != WIFI_AUTH_OPEN ? "true" : "false") + "}";
+    int16_t scanStatus = WiFi.scanComplete();
+
+    if (scanStatus == WIFI_SCAN_RUNNING) {
+        _server.send(200, "application/json", "{\"status\":\"scanning\",\"networks\":[]}");
+        return;
     }
-    json += "]";
-    _server.send(200, "application/json", json);
+
+    if (scanStatus >= 0) {
+        String json = "{\"status\":\"ready\",\"networks\":[";
+        for (int i = 0; i < scanStatus; ++i) {
+            if (i > 0) json += ",";
+            String ssid = WiFi.SSID(i);
+            ssid.replace("\\", "\\\\");
+            ssid.replace("\"", "\\\"");
+            json += "{\"ssid\":\"" + ssid + "\",\"rssi\":" + String(WiFi.RSSI(i)) + ",\"secure\":" + String(WiFi.encryptionType(i) != WIFI_AUTH_OPEN ? "true" : "false") + "}";
+        }
+        json += "]}";
+        WiFi.scanDelete();
+        _server.send(200, "application/json", json);
+        return;
+    }
+
+    // scanStatus == WIFI_SCAN_FAILED: Start a fast async scan (150ms dwell time per channel)
+    WiFi.scanNetworks(true, false, false, 150);
+    _server.send(200, "application/json", "{\"status\":\"scanning\",\"networks\":[]}");
 }
 
 void WebPortal::handleApiLogs() {
@@ -1865,13 +1914,31 @@ void WebPortal::handleApiSaveWifi() {
     }
 
     if (_server.hasArg("sta_ssid")) {
-        _prefs.putString(NVS_KEY_WIFI_SSID, _server.arg("sta_ssid"));
-        _prefs.putString(NVS_KEY_WIFI_PASS, _server.arg("sta_pass"));
+        String staSsid = _server.arg("sta_ssid");
+        staSsid.trim();
+        _prefs.putString(NVS_KEY_WIFI_SSID, staSsid);
+        if (_server.hasArg("sta_pass")) {
+            String staPass = _server.arg("sta_pass");
+            if (staPass.length() > 0) {
+                _prefs.putString(NVS_KEY_WIFI_PASS, staPass);
+            }
+        }
     }
     if (_server.hasArg("ap_ssid")) {
-        _prefs.putString(NVS_KEY_AP_SSID, _server.arg("ap_ssid"));
-        _prefs.putString(NVS_KEY_AP_PASS, _server.arg("ap_pass"));
-        _prefs.putUChar(NVS_KEY_AP_CHAN, (uint8_t)_server.arg("ap_chan").toInt());
+        String apSsid = _server.arg("ap_ssid");
+        apSsid.trim();
+        if (apSsid.length() > 0) {
+            _prefs.putString(NVS_KEY_AP_SSID, apSsid);
+        }
+        if (_server.hasArg("ap_pass")) {
+            String apPass = _server.arg("ap_pass");
+            if (apPass.length() >= 8) {
+                _prefs.putString(NVS_KEY_AP_PASS, apPass);
+            }
+        }
+        if (_server.hasArg("ap_chan")) {
+            _prefs.putUChar(NVS_KEY_AP_CHAN, (uint8_t)_server.arg("ap_chan").toInt());
+        }
         _prefs.putBool(NVS_KEY_AP_HIDDEN, _server.hasArg("ap_hidden"));
         _prefs.putBool(NVS_KEY_AP_CAPTIVE, _server.hasArg("ap_captive"));
         _prefs.putBool(NVS_KEY_MNDP_EN, _server.hasArg("mndp_en"));
@@ -1959,10 +2026,7 @@ void WebPortal::handleUpdateFinish() {
 // Captive Portal & Not Found Handlers
 // =============================================================================
 void WebPortal::handleCaptivePortal() {
-    IPAddress ip = _server.client().localIP();
-    if (ip == INADDR_NONE || ip == IPAddress(0, 0, 0, 0)) {
-        ip = WiFi.softAPIP();
-    }
+    IPAddress ip = WiFi.softAPIP();
     _server.sendHeader("Location", "http://" + ip.toString() + "/");
     _server.send(302, "text/plain", "");
 }
