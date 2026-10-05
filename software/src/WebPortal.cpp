@@ -549,10 +549,12 @@ void WebPortal::streamHeader(ResponseWriter &res, const char *activeTab, const c
 
     time_t nowT = time(nullptr);
     char timeBuf[32];
+    char clockTime[10] = "--:--:--";
     bool is24h = _prefs.getBool(NVS_KEY_TIME_FORMAT_24H, true);
     if (nowT > 1577836800) {
         struct tm ti;
         localtime_r(&nowT, &ti);
+        strftime(clockTime, sizeof(clockTime), "%H:%M:%S", &ti);
         if (is24h) {
             strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", &ti);
         } else {
@@ -601,7 +603,11 @@ void WebPortal::streamHeader(ResponseWriter &res, const char *activeTab, const c
     res.sendChunk_P(PSTR("</div><div class=\"nav-actions\">"
                          "<div class=\"badge-clock\">"
                          "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg>"
-                         "<span id=\"header_clock\">"));
+                         "<span id=\"header_clock\" data-time=\""));
+    res.sendChunk(clockTime);
+    res.sendChunk_P(PSTR("\" data-24h=\""));
+    res.sendChunk(is24h ? "1" : "0");
+    res.sendChunk_P(PSTR("\">"));
     res.sendChunk(timeBuf);
     res.sendChunk_P(PSTR("</span></div>"
                          "<div class=\"theme-switch\">"
@@ -633,7 +639,19 @@ void WebPortal::streamHeader(ResponseWriter &res, const char *activeTab, const c
 }
 
 void WebPortal::streamFooter(ResponseWriter &res) {
-    res.sendChunk_P(PSTR("</div>"
+    res.sendChunk_P(PSTR("</div><script>(function(){"
+                         "var el=document.getElementById('header_clock');"
+                         "if(!el)return;"
+                         "var value=el.getAttribute('data-time')||'';"
+                         "if(!/^\\d{2}:\\d{2}:\\d{2}$/.test(value))return;"
+                         "var p=value.split(':'),h=Number(p[0]),m=Number(p[1]),s=Number(p[2]);"
+                         "var is24=el.getAttribute('data-24h')==='1';"
+                         "function pad(n){return n<10?'0'+n:String(n);}"
+                         "setInterval(function(){s++;if(s>=60){s=0;m++;if(m>=60){m=0;h=(h+1)%24;}}"
+                         "var displayHour=h,suffix='';"
+                         "if(!is24){suffix=h>=12?' PM':' AM';displayHour=h%12||12;}"
+                         "el.textContent=pad(displayHour)+':'+pad(m)+':'+pad(s)+suffix;},1000);"
+                         "})();</script>"
                          "<footer style=\"text-align:center;padding:24px 0 32px 0;font-size:0.80rem;color:var(--muted);border-top:1px solid var(--border);margin-top:40px;\">"
                          "Firmware v" FIRMWARE_VERSION
                          " &bull; Built " FIRMWARE_BUILD_DATE " " FIRMWARE_BUILD_TIME
@@ -829,6 +847,7 @@ void WebPortal::renderRoot(ResponseWriter &res) {
         "  document.getElementById('ap_clients_val').innerText = d.ap_clients || 0;\n"
         "  document.getElementById('ntp_badge').innerText = d.ntp_synced ? 'Synced (OK)' : 'Waiting for sync';\n"
         "  document.getElementById('ntp_badge').className = d.ntp_synced ? 'badge badge-ok' : 'badge badge-warn';\n"
+        "  document.getElementById('time_val').innerText = d.time_str || '--:--';\n"
         "  document.getElementById('tz_val').innerText = 'TZ: ' + (d.tz_city || 'UTC');\n"
         "  document.getElementById('ntp_srv_val').innerText = d.ntp_server || 'pool.ntp.org';\n"
         "  document.getElementById('last_ntp_val').innerText = d.last_ntp_str || '--';\n"
