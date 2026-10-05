@@ -32,8 +32,8 @@ void setLedWifi(bool on);
 #define DEFAULT_PARITY              0    // 0 = None, 1 = Odd, 2 = Even
 #define DEFAULT_STOP_BITS           1
 
-#define SERIAL_RX_RING_BUFFER_SIZE  4096
-#define SERIAL_TX_RING_BUFFER_SIZE  1024
+#define SERIAL_RX_RING_BUFFER_SIZE  8192
+#define SERIAL_TX_RING_BUFFER_SIZE  2048
 #define SERIAL_FLUSH_INTERVAL_MS    5    // Coalescing debounce for network packets
 
 // =============================================================================

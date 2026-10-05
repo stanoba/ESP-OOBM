@@ -17,7 +17,7 @@ struct LogEntry {
 
 class ConsoleLogger {
 public:
-    static const size_t MAX_LOG_ENTRIES = 40;
+    static const size_t MAX_LOG_ENTRIES = 80;
 
     ConsoleLogger();
     void log(LogLevel level, const char *fmt, ...);
