@@ -12,7 +12,7 @@ MndpDiscovery::MndpDiscovery()
 
 void MndpDiscovery::begin(Preferences &prefs) {
     _enabled = prefs.getBool(NVS_KEY_MNDP_EN, true);
-    String host = prefs.getString(NVS_KEY_HOSTNAME, DEFAULT_HOSTNAME);
+    String host = getDeviceHostname(prefs);
     strncpy(_hostname, host.c_str(), sizeof(_hostname) - 1);
     _hostname[sizeof(_hostname) - 1] = '\0';
 

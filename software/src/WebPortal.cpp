@@ -10,6 +10,9 @@
 #include <Update.h>
 #include <esp_sntp.h>
 
+#define WEBPORTAL_STRINGIFY_IMPL(value) #value
+#define WEBPORTAL_STRINGIFY(value) WEBPORTAL_STRINGIFY_IMPL(value)
+
 extern void triggerNtpSync();
 extern time_t g_lastNtpSyncTimestamp;
 extern bool g_ntpSynced;
@@ -276,6 +279,44 @@ static String extractFormArg(const String &body, const String &key) {
     return "";
 }
 
+static String encodeFormValue(const String &value) {
+    static const char HEX_DIGITS[] = "0123456789ABCDEF";
+    String encoded;
+    encoded.reserve(value.length() * 3);
+    for (size_t i = 0; i < value.length(); ++i) {
+        uint8_t ch = (uint8_t)value[i];
+        if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+            (ch >= '0' && ch <= '9') || ch == '-' || ch == '_' ||
+            ch == '.' || ch == '~') {
+            encoded += (char)ch;
+        } else if (ch == ' ') {
+            encoded += '+';
+        } else {
+            encoded += '%';
+            encoded += HEX_DIGITS[ch >> 4];
+            encoded += HEX_DIGITS[ch & 0x0F];
+        }
+    }
+    return encoded;
+}
+
+static String getRequestFormBody(WebServer &server) {
+    if (server.hasArg("plain")) return server.arg("plain");
+
+    // WebServer parses multipart FormData into named arguments instead of
+    // exposing the raw multipart body as "plain". Serialize those arguments
+    // so the shared form parser can handle both multipart and URL-encoded POSTs.
+    String body;
+    body.reserve(512);
+    for (int i = 0; i < server.args(); ++i) {
+        if (i > 0) body += '&';
+        body += encodeFormValue(server.argName(i));
+        body += '=';
+        body += encodeFormValue(server.arg(i));
+    }
+    return body;
+}
+
 // =============================================================================
 // Constructor & Initialization
 // =============================================================================
@@ -416,8 +457,9 @@ void WebPortal::registerHttpRoutes() {
     });
 
     _server.on("/logout", HTTP_GET, [this]() {
-        WebServerResponseWriter res(_server);
-        renderLogout(res);
+        _server.sendHeader("Set-Cookie", "oobm_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+        _server.sendHeader("Location", "/login");
+        _server.send(302, "text/plain", "Logged out");
     });
 
     _server.on("/favicon.svg", HTTP_GET, [this]() {
@@ -458,7 +500,33 @@ void WebPortal::registerHttpRoutes() {
         WebServerResponseWriter res(_server);
         handleApiLogs(res);
     });
+    _server.on("/api/settings/save", HTTP_POST, [this]() {
+        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
+        WebServerResponseWriter res(_server);
+        handleApiSaveSettings(res, getRequestFormBody(_server));
+    });
+    _server.on("/api/wifi/save", HTTP_POST, [this]() {
+        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
+        WebServerResponseWriter res(_server);
+        handleApiSaveWifi(res, getRequestFormBody(_server));
+    });
+    _server.on("/api/restart", HTTP_POST, [this]() {
+        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
+        WebServerResponseWriter res(_server);
+        handleApiRestart(res);
+    });
+    _server.on("/api/factory_reset", HTTP_POST, [this]() {
+        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
+        WebServerResponseWriter res(_server);
+        handleApiFactoryReset(res);
+    });
+    _server.on("/api/platform", HTTP_POST, [this]() {
+        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
+        WebServerResponseWriter res(_server);
+        handleApiPlatform(res, _server.arg("p"));
+    });
     _server.on("/api/ntp/sync", HTTP_POST, [this]() {
+        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
         triggerNtpSync();
         _server.send(200, "application/json", "{\"success\":true}");
     });
@@ -494,7 +562,7 @@ void WebPortal::streamHeader(ResponseWriter &res, const char *activeTab, const c
         snprintf(timeBuf, sizeof(timeBuf), "--:--:--");
     }
 
-    String hostname = _prefs.getString(NVS_KEY_HOSTNAME, DEFAULT_HOSTNAME);
+    String hostname = getDeviceHostname(_prefs);
 
     res.sendChunk_P(PSTR("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\">"
                          "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"
@@ -772,7 +840,7 @@ void WebPortal::renderRoot(ResponseWriter &res) {
         "  statusPollInFlight = true;\n"
         "  fetch('/api/status').then(r=>r.json()).then(updateDashboardUI).catch(()=>{}).then(function(){\n"
         "    statusPollInFlight = false;\n"
-        "    if(!document.hidden) statusPollTimer = setTimeout(pollDashboardStatus, 10000);\n"
+        "    if(!document.hidden) statusPollTimer = setTimeout(pollDashboardStatus, " WEBPORTAL_STRINGIFY(DASHBOARD_AJAX_REFRESH_MS) ");\n"
         "  });\n"
         "}\n"
         "document.addEventListener('visibilitychange', function(){\n"
@@ -782,6 +850,8 @@ void WebPortal::renderRoot(ResponseWriter &res) {
         "pollDashboardStatus();\n"
         "</script>\n"
     ));
+#undef WEBPORTAL_STRINGIFY
+#undef WEBPORTAL_STRINGIFY_IMPL
 
     streamFooter(res);
 }
@@ -1259,7 +1329,7 @@ void WebPortal::renderTerminal(ResponseWriter &res) {
 void WebPortal::renderSettings(ResponseWriter &res) {
     streamHeader(res, "settings", "Settings");
 
-    String devHost = _prefs.getString(NVS_KEY_HOSTNAME, DEFAULT_HOSTNAME);
+    String devHost = getDeviceHostname(_prefs);
     bool staticEn = _prefs.getBool(NVS_KEY_WIFI_DHCP, true) == false;
     String staticIp = _prefs.getString(NVS_KEY_WIFI_IP, "192.168.1.50");
     String staticMask = _prefs.getString(NVS_KEY_WIFI_SN, "255.255.255.0");
@@ -1328,7 +1398,7 @@ void WebPortal::renderSettings(ResponseWriter &res) {
         cNet += "    <h3 style=\"color:var(--navy);\">&#127760; Network &amp; Device Identity</h3>\n";
         cNet += "    <div style=\"margin-bottom:16px;max-width:440px;\">\n";
         cNet += "      <label style=\"font-size:0.82rem;font-weight:600;display:block;margin-bottom:4px;color:var(--muted);\">Device Hostname (mDNS / OTA / DHCP):</label>\n";
-        cNet += "      <input type=\"text\" name=\"dev_host\" id=\"dev_host\" value=\"" + devHost + "\" placeholder=\"esp-oobm\" maxlength=\"32\" class=\"form-control\" style=\"font-family:monospace;\">\n";
+        cNet += "      <input type=\"text\" name=\"dev_host\" id=\"dev_host\" value=\"" + devHost + "\" placeholder=\"esp-oobm-xxxxxx\" maxlength=\"32\" class=\"form-control\" style=\"font-family:monospace;\">\n";
         cNet += "      <small style=\"color:var(--muted);display:block;margin-top:4px;\">Local URL: <code>http://" + devHost + ".local/</code></small>\n";
         cNet += "    </div>\n";
         cNet += "    <label style=\"display:flex;align-items:center;gap:8px;font-weight:600;font-size:0.9rem;margin-bottom:12px;\">\n";
@@ -1863,28 +1933,20 @@ void WebPortal::renderLoginPage(ResponseWriter &res, const char *errMsg) {
     res.end();
 }
 
-void WebPortal::renderLogout(ResponseWriter &res) {
-    res.setHeader("Set-Cookie", "oobm_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT");
-    res.setHeader("Location", "/");
-    res.setStatus(302, "302 Found");
-    res.setContentType("text/plain");
-    res.sendChunk("Logged out");
-    res.end();
-}
-
 // =============================================================================
 // Unified AJAX Endpoints
 // =============================================================================
 void WebPortal::handleApiLogin(ResponseWriter &res, const String &u, const String &p) {
-    res.setContentType("application/json");
     if (u == _authUser && p == _authPass) {
         String setCookie = "oobm_session=" + _sessionToken + "; Path=/; Max-Age=86400; SameSite=Lax";
         res.setHeader("Set-Cookie", setCookie.c_str());
+        res.setContentType("application/json");
         logger.logInfo("Web user '%s' logged in successfully.", _authUser);
         res.sendChunk("{\"success\":true,\"token\":\"" + _sessionToken + "\"}");
     } else {
         logger.logWarn("Failed web login attempt with username '%s'.", u.c_str());
         res.setStatus(401, "401 Unauthorized");
+        res.setContentType("application/json");
         res.sendChunk("{\"success\":false,\"error\":\"Invalid username or password\"}");
     }
     res.end();

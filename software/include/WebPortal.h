@@ -20,16 +20,16 @@ public:
 
 class WebServerResponseWriter : public ResponseWriter {
 public:
-    WebServerResponseWriter(WebServer &server) : _server(server) {}
+    WebServerResponseWriter(WebServer &server) : _server(server), _statusCode(200) {}
     void setStatus(int code, const char *statusStr = "200 OK") override {
-        // WebServer status code is managed internally or via sendHeader/send
+        _statusCode = code;
     }
     void setHeader(const char *name, const char *value) override {
         _server.sendHeader(name, value);
     }
     void setContentType(const char *type) override {
         _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-        _server.send(200, type, "");
+        _server.send(_statusCode, type, "");
     }
     void sendChunk(const char *buf, size_t len) override {
         _server.sendContent(String(buf, len));
@@ -45,6 +45,7 @@ public:
     }
 private:
     WebServer &_server;
+    int _statusCode;
 };
 
 class WebPortal {
@@ -65,7 +66,6 @@ public:
     void renderUpdatePage(ResponseWriter &res);
     void renderMetrics(ResponseWriter &res);
     void renderLoginPage(ResponseWriter &res, const char *errMsg = nullptr);
-    void renderLogout(ResponseWriter &res);
 
     // Unified API Handlers
     void handleApiLogin(ResponseWriter &res, const String &u, const String &p);

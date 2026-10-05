@@ -45,6 +45,7 @@ void setLedWifi(bool on);
 #define DNS_PORT                    53
 #define MNDP_PORT                   5678
 #define OTA_PORT                    3232
+#define DASHBOARD_AJAX_REFRESH_MS   5000
 
 // =============================================================================
 // Access Point & Captive Portal Defaults
@@ -130,7 +131,7 @@ void setLedWifi(bool on);
 inline String getDefaultHostname() {
     String mac = WiFi.macAddress();
     mac.replace(":", "");
-    String suffix = (mac.length() >= 4) ? mac.substring(mac.length() - 4) : "0000";
+    String suffix = (mac.length() >= 6) ? mac.substring(mac.length() - 6) : "000000";
     suffix.toLowerCase();
     return "esp-oobm-" + suffix;
 }
@@ -138,7 +139,7 @@ inline String getDefaultHostname() {
 inline String getDeviceHostname(Preferences &prefs) {
     String host = prefs.getString(NVS_KEY_HOSTNAME, "");
     host.trim();
-    if (host.length() == 0) {
+    if (host.length() == 0 || host.equalsIgnoreCase(DEFAULT_HOSTNAME)) {
         return getDefaultHostname();
     }
     host.toLowerCase();
