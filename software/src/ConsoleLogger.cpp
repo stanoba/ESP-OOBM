@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 ConsoleLogger logger;
+static portMUX_TYPE s_loggerMux = portMUX_INITIALIZER_UNLOCKED;
 
 ConsoleLogger::ConsoleLogger() : _head(0), _count(0) {
     memset(_entries, 0, sizeof(_entries));
@@ -12,8 +13,7 @@ ConsoleLogger::ConsoleLogger() : _head(0), _count(0) {
 void ConsoleLogger::log(LogLevel level, const char *fmt, ...) {
     time_t now = time(nullptr);
     uint32_t ts = (now > 1577836800) ? (uint32_t)now : (millis() / 1000);
-
-    LogEntry &entry = _entries[_head];
+    LogEntry entry = {};
     entry.timestamp = ts;
     entry.level = (uint8_t)level;
 
@@ -22,10 +22,13 @@ void ConsoleLogger::log(LogLevel level, const char *fmt, ...) {
     vsnprintf(entry.msg, sizeof(entry.msg), fmt, args);
     va_end(args);
 
+    portENTER_CRITICAL(&s_loggerMux);
+    _entries[_head] = entry;
     _head = (_head + 1) % MAX_LOG_ENTRIES;
     if (_count < MAX_LOG_ENTRIES) {
         _count++;
     }
+    portEXIT_CRITICAL(&s_loggerMux);
 }
 
 void ConsoleLogger::logInfo(const char *fmt, ...) {
@@ -55,9 +58,24 @@ void ConsoleLogger::logError(const char *fmt, ...) {
     log(LOG_LVL_ERROR, "%s", buf);
 }
 
-const LogEntry& ConsoleLogger::getEntry(size_t index) const {
+size_t ConsoleLogger::getCount() const {
+    portENTER_CRITICAL(&s_loggerMux);
+    size_t count = _count;
+    portEXIT_CRITICAL(&s_loggerMux);
+    return count;
+}
+
+LogEntry ConsoleLogger::getEntry(size_t index) const {
+    LogEntry entry = {};
+    portENTER_CRITICAL(&s_loggerMux);
+    if (_count == 0) {
+        portEXIT_CRITICAL(&s_loggerMux);
+        return entry;
+    }
     if (index >= _count) index = _count - 1;
     size_t start = (_head >= _count) ? (_head - _count) : (MAX_LOG_ENTRIES + _head - _count);
     size_t actualIdx = (start + index) % MAX_LOG_ENTRIES;
-    return _entries[actualIdx];
+    entry = _entries[actualIdx];
+    portEXIT_CRITICAL(&s_loggerMux);
+    return entry;
 }

@@ -9,7 +9,6 @@ extern uint32_t g_serialTxBytes;
 extern uint32_t g_serialRxOverflow;
 extern uint32_t g_serialBaudRate;
 extern uint16_t g_activeWsClients;
-extern uint16_t g_activeSslWsClients;
 extern uint16_t g_activeTelnetClients;
 extern bool     g_ntpSynced;
 
@@ -96,9 +95,8 @@ void SystemStats::update(SystemStatsData &stats) {
     stats.serialRxBytes = g_serialRxBytes;
     stats.serialTxBytes = g_serialTxBytes;
     stats.serialRxOverflow = g_serialRxOverflow;
-    stats.activeWsClients = g_activeWsClients + g_activeSslWsClients;
+    stats.activeWsClients = g_activeWsClients;
     stats.activeTelnetClients = g_activeTelnetClients;
-    stats.activeTlsSockets = 0;
     stats.ntpSynced = g_ntpSynced;
     stats.currentTime = time(nullptr);
 }

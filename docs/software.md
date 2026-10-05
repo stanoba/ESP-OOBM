@@ -66,11 +66,11 @@ The ESP32-PICO-D4 includes 4 MB (4096 KB) embedded SPI flash. The partitioning s
 ```
 # ESP32 Custom 4MB Partition Table with Dual OTA
 # Name,   Type, SubType,  Offset,    Size,     Flags
-nvs,      data, nvs,      0x9000,    0x5000,   
-otadata,  data, ota,      0xe000,    0x2000,   
-app0,     app,  ota_0,    0x10000,   0x1E0000, 
-app1,     app,  ota_1,    0x1F0000,  0x1E0000, 
-spiffs,   data, spiffs,   0x3D0000,  0x30000,  
+nvs,      data, nvs,      0x9000,    0x5000,
+otadata,  data, ota,      0xe000,    0x2000,
+app0,     app,  ota_0,    0x10000,   0x1E0000,
+app1,     app,  ota_1,    0x1F0000,  0x1E0000,
+coredump, data, coredump, 0x3D0000,  0x30000,
 ```
 
 ### Partition Map Breakdown
@@ -81,7 +81,7 @@ spiffs,   data, spiffs,   0x3D0000,  0x30000,
 | **`otadata`** | `0x00E000` | 8 KB | OTA boot selector tracking active vs. pending update partitions |
 | **`app0`** | `0x010000` | 1920 KB | Primary firmware slot (Active / Rollback) |
 | **`app1`** | `0x1F0000` | 1920 KB | Secondary firmware slot (Seamless OTA target) |
-| **`spiffs`** | `0x3D0000` | 192 KB | Static storage / SPIFFS filesystem |
+| **`coredump`** | `0x3D0000` | 192 KB | ESP-IDF crash dump storage |
 
 ---
 

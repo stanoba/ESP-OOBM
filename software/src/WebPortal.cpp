@@ -7,35 +7,17 @@
 #include "PrometheusExporter.h"
 #include "MndpDiscovery.h"
 #include "ConsoleLogger.h"
-#include "TlsManager.h"
 #include <Update.h>
 #include <esp_sntp.h>
-#include <esp_https_server.h>
-#include <freertos/FreeRTOS.h>
 
 extern void triggerNtpSync();
 extern time_t g_lastNtpSyncTimestamp;
 extern bool g_ntpSynced;
 
-static WebPortal *s_portalInstance = nullptr;
-uint16_t g_activeSslWsClients = 0;
-
-// Serial data is produced by Arduino's loop task, while esp_https_server owns
-// the WSS sockets in a separate task. Keep a bounded, allocation-free queue
-// here and perform all WSS sends in the HTTP server task via httpd_queue_work.
-static constexpr size_t SSL_WS_TX_QUEUE_SIZE = 4096;
-static constexpr size_t SSL_WS_TX_FRAME_SIZE = 256;
-static uint8_t s_sslWsTxQueue[SSL_WS_TX_QUEUE_SIZE];
-static size_t s_sslWsTxHead = 0;
-static size_t s_sslWsTxTail = 0;
-static size_t s_sslWsTxCount = 0;
-static bool s_sslWsTxWorkQueued = false;
-static portMUX_TYPE s_sslWsTxMux = portMUX_INITIALIZER_UNLOCKED;
-
 // =============================================================================
 // CSS Stylesheet in Flash ROM (PROGMEM) - Zero RAM Allocation
 // =============================================================================
-static const char COMMON_CSS[] PROGMEM = 
+static const char COMMON_CSS[] PROGMEM =
 R"rawliteral(
 html{box-sizing:border-box;overflow-y:scroll;}
 *,*::before,*::after{box-sizing:inherit;}
@@ -97,8 +79,6 @@ html.light .badge-ok{background:#dcfce7;color:#15803d;border:1px solid #86efac;}
 html.light .badge-warn{background:#fef3c7;color:#b45309;border:1px solid #fde68a;}
 .badge-danger{background:#450a0a;color:#f87171;border:1px solid #dc2626;}
 html.light .badge-danger{background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;}
-.badge-tls{background:#0369a1;color:#bae6fd;border:1px solid #0284c7;}
-html.light .badge-tls{background:#e0f2fe;color:#0369a1;border:1px solid #7dd3fc;}
 
 .btn{padding:8px 16px;border-radius:6px;font-size:0.88rem;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;cursor:pointer;transition:all 0.18s;white-space:nowrap;}
 .btn-primary{background:var(--navy);color:#ffffff;}
@@ -149,7 +129,7 @@ html:not(.light) .ap-banner a{color:#fbbf24;}
 // =============================================================================
 // Shared JavaScript in Flash ROM (PROGMEM)
 // =============================================================================
-static const char COMMON_JS[] PROGMEM = 
+static const char COMMON_JS[] PROGMEM =
 R"rawliteral(
 function isDarkTheme(m){
   if(m === 'dark') return true;
@@ -227,14 +207,14 @@ window.addEventListener('load', function(){
 });
 )rawliteral";
 
-static const char PWD_EYE_TOGGLE_HTML[] PROGMEM = 
+static const char PWD_EYE_TOGGLE_HTML[] PROGMEM =
 "<button type=\"button\" class=\"pwd-toggle\" onclick=\"togglePassword(this)\" title=\"Toggle password visibility\" tabindex=\"-1\">"
 "<svg class=\"eye-open\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>"
 "<svg class=\"eye-closed\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"display:none;\"><path d=\"M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24\"/><line x1=\"1\" y1=\"1\" x2=\"23\" y2=\"23\"/></svg>"
 "</button>";
 
 // =============================================================================
-// Helper: URL decoding and Form Argument Extraction for HTTPS Server
+// Helper: URL decoding and Form Argument Extraction
 // =============================================================================
 static String urlDecode(const String &src) {
     String decoded = "";
@@ -296,25 +276,6 @@ static String extractFormArg(const String &body, const String &key) {
     return "";
 }
 
-static String getHttpPostBody(httpd_req_t *req) {
-    String body = "";
-    if (req->content_len > 0) {
-        size_t total = req->content_len;
-        if (total > 8192) total = 8192; // 8 KB safe maximum for form and cert data
-        body.reserve(total + 1);
-        char chunk[512];
-        size_t received = 0;
-        while (received < total) {
-            size_t toRead = (total - received > sizeof(chunk)) ? sizeof(chunk) : (total - received);
-            int r = httpd_req_recv(req, chunk, toRead);
-            if (r <= 0) break;
-            body.concat(chunk, r);
-            received += r;
-        }
-    }
-    return body;
-}
-
 // =============================================================================
 // Constructor & Initialization
 // =============================================================================
@@ -322,19 +283,12 @@ WebPortal::WebPortal(WebServer &server, DNSServer &dnsServer, Preferences &prefs
     : _server(server),
       _dnsServer(dnsServer),
       _prefs(prefs),
-      _httpsServer(NULL),
       _authRequired(DEFAULT_AUTH_ENABLED),
       _sessionToken(""),
       _isApMode(false),
-      _captiveEnabled(true),
-      _httpsRedirect(true) {
+      _captiveEnabled(true) {
     strncpy(_authUser, DEFAULT_AUTH_USER, sizeof(_authUser) - 1);
     strncpy(_authPass, DEFAULT_AUTH_PASS, sizeof(_authPass) - 1);
-    for (int i = 0; i < MAX_SSL_WS_CLIENTS; i++) {
-        _sslWsClients[i] = -1;
-        _sslWsAuth[i] = false;
-    }
-    s_portalInstance = this;
     updateSessionToken();
 }
 
@@ -375,588 +329,12 @@ bool WebPortal::isAuthenticated() {
     return false;
 }
 
-bool WebPortal::isRequestAuthenticated(httpd_req_t *req) {
-    if (!_authRequired) return true;
-    if (!req) return false;
-
-    char cookieBuf[256] = {0};
-    if (httpd_req_get_hdr_value_str(req, "Cookie", cookieBuf, sizeof(cookieBuf)) == ESP_OK) {
-        if (strstr(cookieBuf, _sessionToken.c_str()) != NULL) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 bool WebPortal::checkAuth() {
     if (isAuthenticated()) return true;
 
     WebServerResponseWriter res(_server);
     renderLoginPage(res);
     return false;
-}
-
-// =============================================================================
-// WebSocket Secure (WSS) Management on Port 443
-// =============================================================================
-void WebPortal::registerSslWsClient(int fd) {
-    for (int i = 0; i < MAX_SSL_WS_CLIENTS; i++) {
-        if (_sslWsClients[i] == fd) {
-            _sslWsAuth[i] = !_authRequired;
-            return;
-        }
-        // A peer can disconnect while the serial stream is idle, so no later
-        // broadcast may notice and clear its slot. Reclaim dead descriptors
-        // while already running in the HTTPS server task.
-        if (_sslWsClients[i] > 0 &&
-            httpd_ws_get_fd_info(_httpsServer, _sslWsClients[i]) != HTTPD_WS_CLIENT_WEBSOCKET) {
-            _sslWsClients[i] = -1;
-            _sslWsAuth[i] = false;
-        }
-    }
-    for (int i = 0; i < MAX_SSL_WS_CLIENTS; i++) {
-        if (_sslWsClients[i] == -1) {
-            _sslWsClients[i] = fd;
-            _sslWsAuth[i] = !_authRequired;
-            g_activeSslWsClients = getActiveSslWsClients();
-            logger.logInfo("[HTTPS] WebSocket client connected (fd: %d, Auth: %s)", 
-                           fd, _sslWsAuth[i] ? "OK" : "Pending");
-            if (_sslWsAuth[i] && serialBridge.getGreetingBanner()) {
-                const char banner[] = "\x1b[32m[ESP-OOBM: Connected to Serial Console via TLS/WSS]\x1b[0m\r\n";
-                httpd_ws_frame_t frame;
-                memset(&frame, 0, sizeof(frame));
-                frame.type = HTTPD_WS_TYPE_BINARY;
-                frame.payload = (uint8_t*)banner;
-                frame.len = strlen(banner);
-                httpd_ws_send_data(_httpsServer, fd, &frame);
-            }
-            return;
-        }
-    }
-}
-
-void WebPortal::unregisterSslWsClient(int fd) {
-    for (int i = 0; i < MAX_SSL_WS_CLIENTS; i++) {
-        if (_sslWsClients[i] == fd) {
-            _sslWsClients[i] = -1;
-            _sslWsAuth[i] = false;
-            g_activeSslWsClients = getActiveSslWsClients();
-            logger.logInfo("[HTTPS] WebSocket client disconnected (fd: %d)", fd);
-            return;
-        }
-    }
-}
-
-void WebPortal::handleSslWsPayload(int fd, httpd_ws_type_t type, const uint8_t *payload, size_t length) {
-    if (!payload || length == 0) return;
-
-    int clientIdx = -1;
-    for (int i = 0; i < MAX_SSL_WS_CLIENTS; i++) {
-        if (_sslWsClients[i] == fd) { clientIdx = i; break; }
-    }
-    if (clientIdx == -1) {
-        registerSslWsClient(fd);
-        for (int i = 0; i < MAX_SSL_WS_CLIENTS; i++) {
-            if (_sslWsClients[i] == fd) { clientIdx = i; break; }
-        }
-    }
-
-    // Never treat a client as authenticated if both tracking slots are in use.
-    if (clientIdx == -1) return;
-
-    if (_authRequired && !_sslWsAuth[clientIdx]) {
-        if (length > 5 && memcmp(payload, "AUTH:", 5) == 0) {
-            char authBuf[96];
-            size_t copyLen = (length - 5 < sizeof(authBuf) - 1) ? (length - 5) : (sizeof(authBuf) - 1);
-            memcpy(authBuf, payload + 5, copyLen);
-            authBuf[copyLen] = '\0';
-
-            char *colon = strchr(authBuf, ':');
-            if (colon) {
-                *colon = '\0';
-                const char *u = authBuf;
-                const char *p = colon + 1;
-                if (strcmp(u, _authUser) == 0 && strcmp(p, _authPass) == 0) {
-                    _sslWsAuth[clientIdx] = true;
-                    if (serialBridge.getGreetingBanner()) {
-                        const char okMsg[] = "\x1b[32m[ESP-OOBM: Authenticated to Serial Console via TLS/WSS]\x1b[0m\r\n";
-                        httpd_ws_frame_t frame;
-                        memset(&frame, 0, sizeof(frame));
-                        frame.type = HTTPD_WS_TYPE_BINARY;
-                        frame.payload = (uint8_t*)okMsg;
-                        frame.len = strlen(okMsg);
-                        httpd_ws_send_data(_httpsServer, fd, &frame);
-                    }
-                    logger.logInfo("[HTTPS] WebSocket client fd %d authenticated successfully.", fd);
-                    return;
-                }
-            }
-        }
-        const char failMsg[] = "\x1b[31m[Authentication failed]\x1b[0m\r\n";
-        httpd_ws_frame_t failFrame;
-        memset(&failFrame, 0, sizeof(failFrame));
-        failFrame.type = HTTPD_WS_TYPE_BINARY;
-        failFrame.payload = (uint8_t*)failMsg;
-        failFrame.len = strlen(failMsg);
-        httpd_ws_send_data(_httpsServer, fd, &failFrame);
-        return;
-    }
-
-    serialBridge.write(payload, length);
-    if (serialBridge.getForceEcho()) {
-        httpd_ws_frame_t echoFrame;
-        memset(&echoFrame, 0, sizeof(echoFrame));
-        echoFrame.type = (type == HTTPD_WS_TYPE_TEXT) ? HTTPD_WS_TYPE_TEXT : HTTPD_WS_TYPE_BINARY;
-        echoFrame.payload = (uint8_t*)payload;
-        echoFrame.len = length;
-        httpd_ws_send_data(_httpsServer, fd, &echoFrame);
-    }
-}
-
-void WebPortal::broadcastWs(const uint8_t *data, size_t len) {
-    if (!_httpsServer || !data || len == 0 || g_activeSslWsClients == 0) return;
-
-    bool scheduleWork = false;
-    portENTER_CRITICAL(&s_sslWsTxMux);
-    for (size_t i = 0; i < len; ++i) {
-        // Preserve the newest terminal output if a slow client fills the
-        // bounded queue. No allocation is performed on the serial hot path.
-        if (s_sslWsTxCount == SSL_WS_TX_QUEUE_SIZE) {
-            s_sslWsTxTail = (s_sslWsTxTail + 1) % SSL_WS_TX_QUEUE_SIZE;
-            --s_sslWsTxCount;
-        }
-        s_sslWsTxQueue[s_sslWsTxHead] = data[i];
-        s_sslWsTxHead = (s_sslWsTxHead + 1) % SSL_WS_TX_QUEUE_SIZE;
-        ++s_sslWsTxCount;
-    }
-    if (!s_sslWsTxWorkQueued) {
-        s_sslWsTxWorkQueued = true;
-        scheduleWork = true;
-    }
-    portEXIT_CRITICAL(&s_sslWsTxMux);
-
-    if (scheduleWork && httpd_queue_work(_httpsServer, processSslWsTxWork, this) != ESP_OK) {
-        // Leave queued bytes available for the next broadcast to retry.
-        portENTER_CRITICAL(&s_sslWsTxMux);
-        s_sslWsTxWorkQueued = false;
-        portEXIT_CRITICAL(&s_sslWsTxMux);
-    }
-}
-
-void WebPortal::processSslWsTxWork(void *arg) {
-    WebPortal *portal = static_cast<WebPortal *>(arg);
-    if (!portal || !portal->_httpsServer) return;
-
-    uint8_t payload[SSL_WS_TX_FRAME_SIZE];
-    for (size_t batch = 0; batch < 4; ++batch) {
-        size_t payloadLen = 0;
-        portENTER_CRITICAL(&s_sslWsTxMux);
-        payloadLen = (s_sslWsTxCount < sizeof(payload)) ? s_sslWsTxCount : sizeof(payload);
-        for (size_t i = 0; i < payloadLen; ++i) {
-            payload[i] = s_sslWsTxQueue[s_sslWsTxTail];
-            s_sslWsTxTail = (s_sslWsTxTail + 1) % SSL_WS_TX_QUEUE_SIZE;
-        }
-        s_sslWsTxCount -= payloadLen;
-        portEXIT_CRITICAL(&s_sslWsTxMux);
-
-        if (payloadLen == 0) break;
-
-        httpd_ws_frame_t frame;
-        memset(&frame, 0, sizeof(frame));
-        frame.type = HTTPD_WS_TYPE_BINARY;
-        frame.payload = payload;
-        frame.len = payloadLen;
-
-        for (int i = 0; i < MAX_SSL_WS_CLIENTS; ++i) {
-            const int fd = portal->_sslWsClients[i];
-            if (fd <= 0) continue;
-
-            if (httpd_ws_get_fd_info(portal->_httpsServer, fd) != HTTPD_WS_CLIENT_WEBSOCKET) {
-                portal->_sslWsClients[i] = -1;
-                portal->_sslWsAuth[i] = false;
-                continue;
-            }
-            if (portal->_sslWsAuth[i] &&
-                httpd_ws_send_data(portal->_httpsServer, fd, &frame) != ESP_OK) {
-                portal->_sslWsClients[i] = -1;
-                portal->_sslWsAuth[i] = false;
-            }
-        }
-        g_activeSslWsClients = portal->getActiveSslWsClients();
-    }
-
-    bool scheduleAgain = false;
-    portENTER_CRITICAL(&s_sslWsTxMux);
-    if (s_sslWsTxCount == 0) {
-        s_sslWsTxWorkQueued = false;
-    } else {
-        scheduleAgain = true;
-    }
-    portEXIT_CRITICAL(&s_sslWsTxMux);
-
-    if (scheduleAgain &&
-        httpd_queue_work(portal->_httpsServer, processSslWsTxWork, portal) != ESP_OK) {
-        portENTER_CRITICAL(&s_sslWsTxMux);
-        s_sslWsTxWorkQueued = false;
-        portEXIT_CRITICAL(&s_sslWsTxMux);
-    }
-}
-
-// =============================================================================
-// esp_https_server Static Handlers
-// =============================================================================
-#define MAX_WS_INCOMING_FRAME_LEN 2048
-
-static esp_err_t https_ws_handler(httpd_req_t *req) {
-    if (req->method == HTTP_GET) {
-        int fd = httpd_req_to_sockfd(req);
-        if (s_portalInstance) s_portalInstance->registerSslWsClient(fd);
-        return ESP_OK;
-    }
-
-    httpd_ws_frame_t ws_pkt;
-    memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
-    ws_pkt.type = HTTPD_WS_TYPE_TEXT;
-
-    esp_err_t ret = httpd_ws_recv_frame(req, &ws_pkt, 0);
-    if (ret != ESP_OK) return ret;
-
-    if (ws_pkt.len > MAX_WS_INCOMING_FRAME_LEN) {
-        return ESP_ERR_INVALID_SIZE;
-    }
-
-    if (ws_pkt.len > 0) {
-        uint8_t *buf = (uint8_t*)malloc(ws_pkt.len + 1);
-        if (!buf) return ESP_ERR_NO_MEM;
-        ws_pkt.payload = buf;
-        ret = httpd_ws_recv_frame(req, &ws_pkt, ws_pkt.len);
-        if (ret == ESP_OK) {
-            buf[ws_pkt.len] = '\0';
-            int fd = httpd_req_to_sockfd(req);
-            if (s_portalInstance) {
-                s_portalInstance->handleSslWsPayload(fd, ws_pkt.type, buf, ws_pkt.len);
-            }
-        }
-        free(buf);
-    }
-    return ESP_OK;
-}
-
-static esp_err_t https_root_handler(httpd_req_t *req) {
-    HttpsResponseWriter res(req);
-    if (!s_portalInstance->isRequestAuthenticated(req)) {
-        s_portalInstance->renderLoginPage(res);
-        return ESP_OK;
-    }
-    s_portalInstance->renderRoot(res);
-    return ESP_OK;
-}
-
-static esp_err_t https_terminal_handler(httpd_req_t *req) {
-    HttpsResponseWriter res(req);
-    if (!s_portalInstance->isRequestAuthenticated(req)) {
-        s_portalInstance->renderLoginPage(res);
-        return ESP_OK;
-    }
-    s_portalInstance->renderTerminal(res);
-    return ESP_OK;
-}
-
-static esp_err_t https_settings_handler(httpd_req_t *req) {
-    HttpsResponseWriter res(req);
-    if (!s_portalInstance->isRequestAuthenticated(req)) {
-        s_portalInstance->renderLoginPage(res);
-        return ESP_OK;
-    }
-    s_portalInstance->renderSettings(res);
-    return ESP_OK;
-}
-
-static esp_err_t https_wifi_handler(httpd_req_t *req) {
-    HttpsResponseWriter res(req);
-    if (!s_portalInstance->isRequestAuthenticated(req)) {
-        s_portalInstance->renderLoginPage(res);
-        return ESP_OK;
-    }
-    s_portalInstance->renderWifiPage(res);
-    return ESP_OK;
-}
-
-static esp_err_t https_update_handler(httpd_req_t *req) {
-    HttpsResponseWriter res(req);
-    if (!s_portalInstance->isRequestAuthenticated(req)) {
-        s_portalInstance->renderLoginPage(res);
-        return ESP_OK;
-    }
-    s_portalInstance->renderUpdatePage(res);
-    return ESP_OK;
-}
-
-static esp_err_t https_metrics_handler(httpd_req_t *req) {
-    HttpsResponseWriter res(req);
-    s_portalInstance->renderMetrics(res);
-    return ESP_OK;
-}
-
-static esp_err_t https_login_handler(httpd_req_t *req) {
-    HttpsResponseWriter res(req);
-    s_portalInstance->renderLoginPage(res);
-    return ESP_OK;
-}
-
-static esp_err_t https_logout_handler(httpd_req_t *req) {
-    HttpsResponseWriter res(req);
-    s_portalInstance->renderLogout(res);
-    return ESP_OK;
-}
-
-static esp_err_t https_favicon_handler(httpd_req_t *req) {
-    httpd_resp_set_type(req, "image/svg+xml");
-    httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=604800");
-    httpd_resp_send(req, OOBM_FAVICON_SVG, strlen(OOBM_FAVICON_SVG));
-    return ESP_OK;
-}
-
-static esp_err_t https_api_status_handler(httpd_req_t *req) {
-    HttpsResponseWriter res(req);
-    if (!s_portalInstance->isRequestAuthenticated(req)) {
-        httpd_resp_set_status(req, "401 Unauthorized");
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_send(req, "{\"error\":\"Unauthorized\"}", HTTPD_RESP_USE_STRLEN);
-        return ESP_OK;
-    }
-    s_portalInstance->handleApiStatus(res);
-    return ESP_OK;
-}
-
-static esp_err_t https_api_scan_handler(httpd_req_t *req) {
-    HttpsResponseWriter res(req);
-    if (!s_portalInstance->isRequestAuthenticated(req)) {
-        httpd_resp_set_status(req, "401 Unauthorized");
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_send(req, "{\"error\":\"Unauthorized\"}", HTTPD_RESP_USE_STRLEN);
-        return ESP_OK;
-    }
-    s_portalInstance->handleApiScan(res);
-    return ESP_OK;
-}
-
-static esp_err_t https_api_logs_handler(httpd_req_t *req) {
-    HttpsResponseWriter res(req);
-    if (!s_portalInstance->isRequestAuthenticated(req)) {
-        httpd_resp_set_status(req, "401 Unauthorized");
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_send(req, "{\"error\":\"Unauthorized\"}", HTTPD_RESP_USE_STRLEN);
-        return ESP_OK;
-    }
-    s_portalInstance->handleApiLogs(res);
-    return ESP_OK;
-}
-
-static esp_err_t https_api_login_handler(httpd_req_t *req) {
-    String body = getHttpPostBody(req);
-    String u = extractFormArg(body, "usr");
-    if (u.length() == 0) u = extractFormArg(body, "user");
-    String p = extractFormArg(body, "pwd");
-    if (p.length() == 0) p = extractFormArg(body, "pass");
-
-    HttpsResponseWriter res(req);
-    s_portalInstance->handleApiLogin(res, u, p);
-    return ESP_OK;
-}
-
-static esp_err_t https_api_tls_info_handler(httpd_req_t *req) {
-    HttpsResponseWriter res(req);
-    s_portalInstance->handleApiTlsInfo(res);
-    return ESP_OK;
-}
-
-static esp_err_t https_api_tls_upload_handler(httpd_req_t *req) {
-    String body = getHttpPostBody(req);
-    String certPem = extractFormArg(body, "cert_data");
-    if (certPem.length() == 0) certPem = extractFormArg(body, "cert_pem");
-    String keyPem = extractFormArg(body, "key_data");
-    if (keyPem.length() == 0) keyPem = extractFormArg(body, "key_pem");
-
-    HttpsResponseWriter res(req);
-    s_portalInstance->handleApiTlsUpload(res, certPem, keyPem);
-    return ESP_OK;
-}
-
-static esp_err_t https_api_tls_reset_handler(httpd_req_t *req) {
-    HttpsResponseWriter res(req);
-    s_portalInstance->handleApiTlsReset(res);
-    return ESP_OK;
-}
-
-static esp_err_t https_api_settings_save_handler(httpd_req_t *req) {
-    String body = getHttpPostBody(req);
-    HttpsResponseWriter res(req);
-    s_portalInstance->handleApiSaveSettings(res, body);
-    return ESP_OK;
-}
-
-static esp_err_t https_api_wifi_save_handler(httpd_req_t *req) {
-    String body = getHttpPostBody(req);
-    HttpsResponseWriter res(req);
-    s_portalInstance->handleApiSaveWifi(res, body);
-    return ESP_OK;
-}
-
-static esp_err_t https_api_restart_handler(httpd_req_t *req) {
-    HttpsResponseWriter res(req);
-    s_portalInstance->handleApiRestart(res);
-    return ESP_OK;
-}
-
-static esp_err_t https_api_factory_reset_handler(httpd_req_t *req) {
-    HttpsResponseWriter res(req);
-    s_portalInstance->handleApiFactoryReset(res);
-    return ESP_OK;
-}
-
-static esp_err_t https_api_platform_handler(httpd_req_t *req) {
-    char qBuf[64] = {0};
-    String platform = "mikrotik";
-    if (httpd_req_get_url_query_str(req, qBuf, sizeof(qBuf)) == ESP_OK) {
-        char pVal[32] = {0};
-        if (httpd_query_key_value(qBuf, "p", pVal, sizeof(pVal)) == ESP_OK) {
-            platform = String(pVal);
-        }
-    }
-    HttpsResponseWriter res(req);
-    s_portalInstance->handleApiPlatform(res, platform);
-    return ESP_OK;
-}
-
-static esp_err_t https_api_ntp_sync_handler(httpd_req_t *req) {
-    triggerNtpSync();
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_send(req, "{\"success\":true}", HTTPD_RESP_USE_STRLEN);
-    return ESP_OK;
-}
-
-// =============================================================================
-// Start & Register HTTPS Server
-// =============================================================================
-bool WebPortal::startHttpsServer() {
-    if (_httpsServer != NULL) {
-        stopHttpsServer();
-    }
-
-    httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
-    config.cacert_pem = (const uint8_t*)tlsManager.getCertPem();
-    config.cacert_len = tlsManager.getCertLen();
-    config.prvtkey_pem = (const uint8_t*)tlsManager.getKeyPem();
-    config.prvtkey_len = tlsManager.getKeyLen();
-    config.port_secure = HTTPS_PORT;
-    // ESP-IDF reserves three sockets internally; 6 therefore allows three
-    // application connections (up to two WSS terminals plus one HTTP/API or
-    // metrics request).
-    config.httpd.max_open_sockets = 6;
-    config.httpd.max_uri_handlers = 40;
-    config.httpd.stack_size = 16384; // 16 KB safe stack for mbedtls SSL handshakes & RSA/ECDHE
-    config.httpd.lru_purge_enable = true; // Auto-purge idle sockets immediately on new incoming connections
-    config.httpd.recv_wait_timeout = 5;
-    config.httpd.send_wait_timeout = 5;
-    config.transport_mode = HTTPD_SSL_TRANSPORT_SECURE;
-
-    esp_err_t ret = httpd_ssl_start(&_httpsServer, &config);
-    if (ret != ESP_OK) {
-        logger.logError("[HTTPS] Failed to start HTTPS server on port %u (Error code: %d)", HTTPS_PORT, ret);
-        _httpsServer = NULL;
-        return false;
-    }
-
-    registerHttpsRoutes();
-    TlsCertInfo info = tlsManager.getCertInfo();
-    logger.logInfo("[HTTPS] Secure HTTPS server started on port %u (Certificate: %s, CN: %s)", 
-                   HTTPS_PORT, info.isCustom ? "Custom" : "Built-in Wildcard", info.subjectCn.c_str());
-    return true;
-}
-
-void WebPortal::stopHttpsServer() {
-    if (_httpsServer != NULL) {
-        httpd_ssl_stop(_httpsServer);
-        _httpsServer = NULL;
-        logger.logInfo("[HTTPS] Secure HTTPS server stopped.");
-    }
-    portENTER_CRITICAL(&s_sslWsTxMux);
-    s_sslWsTxHead = 0;
-    s_sslWsTxTail = 0;
-    s_sslWsTxCount = 0;
-    s_sslWsTxWorkQueued = false;
-    portEXIT_CRITICAL(&s_sslWsTxMux);
-    for (int i = 0; i < MAX_SSL_WS_CLIENTS; ++i) {
-        _sslWsClients[i] = -1;
-        _sslWsAuth[i] = false;
-    }
-    g_activeSslWsClients = 0;
-}
-
-bool WebPortal::reloadTlsCertificates() {
-    return startHttpsServer();
-}
-
-void WebPortal::registerHttpsRoutes() {
-    if (!_httpsServer) return;
-
-    // WebSocket Secure WSS Route
-    httpd_uri_t uri_ws = { .uri = "/ws", .method = HTTP_GET, .handler = https_ws_handler, .user_ctx = NULL, .is_websocket = true };
-    httpd_register_uri_handler(_httpsServer, &uri_ws);
-
-    // HTML Pages
-    httpd_uri_t uri_root     = { .uri = "/",         .method = HTTP_GET, .handler = https_root_handler,     .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_terminal = { .uri = "/terminal",  .method = HTTP_GET, .handler = https_terminal_handler, .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_settings = { .uri = "/settings",  .method = HTTP_GET, .handler = https_settings_handler, .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_wifi     = { .uri = "/wifi",      .method = HTTP_GET, .handler = https_wifi_handler,     .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_update   = { .uri = "/update",    .method = HTTP_GET, .handler = https_update_handler,   .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_metrics  = { .uri = "/metrics",   .method = HTTP_GET, .handler = https_metrics_handler,  .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_login    = { .uri = "/login",     .method = HTTP_GET, .handler = https_login_handler,    .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_logout   = { .uri = "/logout",    .method = HTTP_GET, .handler = https_logout_handler,   .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_fav_ico  = { .uri = "/favicon.ico", .method = HTTP_GET, .handler = https_favicon_handler, .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_fav_svg  = { .uri = "/favicon.svg", .method = HTTP_GET, .handler = https_favicon_handler, .user_ctx = NULL, .is_websocket = false };
-
-    httpd_register_uri_handler(_httpsServer, &uri_root);
-    httpd_register_uri_handler(_httpsServer, &uri_terminal);
-    httpd_register_uri_handler(_httpsServer, &uri_settings);
-    httpd_register_uri_handler(_httpsServer, &uri_wifi);
-    httpd_register_uri_handler(_httpsServer, &uri_update);
-    httpd_register_uri_handler(_httpsServer, &uri_metrics);
-    httpd_register_uri_handler(_httpsServer, &uri_login);
-    httpd_register_uri_handler(_httpsServer, &uri_logout);
-    httpd_register_uri_handler(_httpsServer, &uri_fav_ico);
-    httpd_register_uri_handler(_httpsServer, &uri_fav_svg);
-
-    // APIs
-    httpd_uri_t uri_api_login   = { .uri = "/api/login",          .method = HTTP_POST, .handler = https_api_login_handler,         .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_api_status  = { .uri = "/api/status",         .method = HTTP_GET,  .handler = https_api_status_handler,        .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_api_scan    = { .uri = "/api/scan",           .method = HTTP_GET,  .handler = https_api_scan_handler,          .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_api_logs    = { .uri = "/api/logs",           .method = HTTP_GET,  .handler = https_api_logs_handler,          .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_api_tls_inf = { .uri = "/api/tls/info",       .method = HTTP_GET,  .handler = https_api_tls_info_handler,      .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_api_tls_upl = { .uri = "/api/tls/upload",     .method = HTTP_POST, .handler = https_api_tls_upload_handler,    .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_api_tls_rst = { .uri = "/api/tls/reset",      .method = HTTP_POST, .handler = https_api_tls_reset_handler,     .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_api_ntp_syn = { .uri = "/api/ntp/sync",       .method = HTTP_POST, .handler = https_api_ntp_sync_handler,      .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_api_set_sav = { .uri = "/api/settings/save",  .method = HTTP_POST, .handler = https_api_settings_save_handler, .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_api_wif_sav = { .uri = "/api/wifi/save",      .method = HTTP_POST, .handler = https_api_wifi_save_handler,     .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_api_restart = { .uri = "/api/restart",        .method = HTTP_POST, .handler = https_api_restart_handler,       .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_api_factrst = { .uri = "/api/factory_reset",  .method = HTTP_POST, .handler = https_api_factory_reset_handler, .user_ctx = NULL, .is_websocket = false };
-    httpd_uri_t uri_api_platfrm = { .uri = "/api/platform",       .method = HTTP_POST, .handler = https_api_platform_handler,      .user_ctx = NULL, .is_websocket = false };
-
-    httpd_register_uri_handler(_httpsServer, &uri_api_login);
-    httpd_register_uri_handler(_httpsServer, &uri_api_status);
-    httpd_register_uri_handler(_httpsServer, &uri_api_scan);
-    httpd_register_uri_handler(_httpsServer, &uri_api_logs);
-    httpd_register_uri_handler(_httpsServer, &uri_api_tls_inf);
-    httpd_register_uri_handler(_httpsServer, &uri_api_tls_upl);
-    httpd_register_uri_handler(_httpsServer, &uri_api_tls_rst);
-    httpd_register_uri_handler(_httpsServer, &uri_api_ntp_syn);
-    httpd_register_uri_handler(_httpsServer, &uri_api_set_sav);
-    httpd_register_uri_handler(_httpsServer, &uri_api_wif_sav);
-    httpd_register_uri_handler(_httpsServer, &uri_api_restart);
-    httpd_register_uri_handler(_httpsServer, &uri_api_factrst);
-    httpd_register_uri_handler(_httpsServer, &uri_api_platfrm);
 }
 
 // =============================================================================
@@ -967,7 +345,6 @@ void WebPortal::begin() {
     _server.collectHeaders(headerKeys, 3);
 
     _authRequired = _prefs.getBool(NVS_KEY_AUTH_EN, DEFAULT_AUTH_ENABLED);
-    _httpsRedirect = _prefs.getBool(NVS_KEY_HTTPS_REDIRECT, true);
     String u = _prefs.getString(NVS_KEY_AUTH_USER, DEFAULT_AUTH_USER);
     String p = _prefs.getString(NVS_KEY_AUTH_PASS, DEFAULT_AUTH_PASS);
     strncpy(_authUser, u.c_str(), sizeof(_authUser) - 1);
@@ -984,11 +361,7 @@ void WebPortal::begin() {
     // Register HTTP Port 80 Routes
     registerHttpRoutes();
     _server.begin();
-    logger.logInfo("HTTP server started on port %u (Redirect to HTTPS: %s)", 
-                   HTTP_PORT, _httpsRedirect ? "Enabled" : "Disabled");
-
-    // Start HTTPS Server on Port 443
-    startHttpsServer();
+    logger.logInfo("HTTP server started on port %u", HTTP_PORT);
 }
 
 void WebPortal::registerHttpRoutes() {
@@ -1003,75 +376,30 @@ void WebPortal::registerHttpRoutes() {
 
     // HTML Page Routes on Port 80
     _server.on("/", HTTP_GET, [this]() {
-        if (_httpsRedirect) {
-            String host = _server.hostHeader();
-            if (host.length() == 0) host = WiFi.localIP().toString();
-            int colonIdx = host.indexOf(':');
-            if (colonIdx != -1) host = host.substring(0, colonIdx);
-            _server.sendHeader("Location", "https://" + host + "/");
-            _server.send(301, "text/plain", "Redirecting to HTTPS...");
-            return;
-        }
         if (!checkAuth()) return;
         WebServerResponseWriter res(_server);
         renderRoot(res);
     });
 
     _server.on("/terminal", HTTP_GET, [this]() {
-        if (_httpsRedirect) {
-            String host = _server.hostHeader();
-            if (host.length() == 0) host = WiFi.localIP().toString();
-            int colonIdx = host.indexOf(':');
-            if (colonIdx != -1) host = host.substring(0, colonIdx);
-            _server.sendHeader("Location", "https://" + host + "/terminal");
-            _server.send(301, "text/plain", "Redirecting to HTTPS...");
-            return;
-        }
         if (!checkAuth()) return;
         WebServerResponseWriter res(_server);
         renderTerminal(res);
     });
 
     _server.on("/settings", HTTP_GET, [this]() {
-        if (_httpsRedirect) {
-            String host = _server.hostHeader();
-            if (host.length() == 0) host = WiFi.localIP().toString();
-            int colonIdx = host.indexOf(':');
-            if (colonIdx != -1) host = host.substring(0, colonIdx);
-            _server.sendHeader("Location", "https://" + host + "/settings");
-            _server.send(301, "text/plain", "Redirecting to HTTPS...");
-            return;
-        }
         if (!checkAuth()) return;
         WebServerResponseWriter res(_server);
         renderSettings(res);
     });
 
     _server.on("/wifi", HTTP_GET, [this]() {
-        if (_httpsRedirect) {
-            String host = _server.hostHeader();
-            if (host.length() == 0) host = WiFi.localIP().toString();
-            int colonIdx = host.indexOf(':');
-            if (colonIdx != -1) host = host.substring(0, colonIdx);
-            _server.sendHeader("Location", "https://" + host + "/wifi");
-            _server.send(301, "text/plain", "Redirecting to HTTPS...");
-            return;
-        }
         if (!checkAuth()) return;
         WebServerResponseWriter res(_server);
         renderWifiPage(res);
     });
 
     _server.on("/update", HTTP_GET, [this]() {
-        if (_httpsRedirect) {
-            String host = _server.hostHeader();
-            if (host.length() == 0) host = WiFi.localIP().toString();
-            int colonIdx = host.indexOf(':');
-            if (colonIdx != -1) host = host.substring(0, colonIdx);
-            _server.sendHeader("Location", "https://" + host + "/update");
-            _server.send(301, "text/plain", "Redirecting to HTTPS...");
-            return;
-        }
         if (!checkAuth()) return;
         WebServerResponseWriter res(_server);
         renderUpdatePage(res);
@@ -1129,47 +457,6 @@ void WebPortal::registerHttpRoutes() {
         if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
         WebServerResponseWriter res(_server);
         handleApiLogs(res);
-    });
-    _server.on("/api/tls/info", HTTP_GET, [this]() {
-        WebServerResponseWriter res(_server);
-        handleApiTlsInfo(res);
-    });
-    _server.on("/api/tls/upload", HTTP_POST, [this]() {
-        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
-        String certPem = _server.hasArg("cert_data") ? _server.arg("cert_data") : (_server.hasArg("cert_pem") ? _server.arg("cert_pem") : "");
-        String keyPem  = _server.hasArg("key_data") ? _server.arg("key_data") : (_server.hasArg("key_pem") ? _server.arg("key_pem") : "");
-        WebServerResponseWriter res(_server);
-        handleApiTlsUpload(res, certPem, keyPem);
-    });
-    _server.on("/api/tls/reset", HTTP_POST, [this]() {
-        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
-        WebServerResponseWriter res(_server);
-        handleApiTlsReset(res);
-    });
-    _server.on("/api/settings/save", HTTP_POST, [this]() {
-        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
-        WebServerResponseWriter res(_server);
-        handleApiSaveSettings(res, _server.arg("plain"));
-    });
-    _server.on("/api/wifi/save", HTTP_POST, [this]() {
-        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
-        WebServerResponseWriter res(_server);
-        handleApiSaveWifi(res, _server.arg("plain"));
-    });
-    _server.on("/api/restart", HTTP_POST, [this]() {
-        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
-        WebServerResponseWriter res(_server);
-        handleApiRestart(res);
-    });
-    _server.on("/api/factory_reset", HTTP_POST, [this]() {
-        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
-        WebServerResponseWriter res(_server);
-        handleApiFactoryReset(res);
-    });
-    _server.on("/api/platform", HTTP_POST, [this]() {
-        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
-        WebServerResponseWriter res(_server);
-        handleApiPlatform(res, _server.arg("p"));
     });
     _server.on("/api/ntp/sync", HTTP_POST, [this]() {
         triggerNtpSync();
@@ -1280,8 +567,8 @@ void WebPortal::streamHeader(ResponseWriter &res, const char *activeTab, const c
 void WebPortal::streamFooter(ResponseWriter &res) {
     res.sendChunk_P(PSTR("</div>"
                          "<footer style=\"text-align:center;padding:24px 0 32px 0;font-size:0.80rem;color:var(--muted);border-top:1px solid var(--border);margin-top:40px;\">"
-                         "Firmware v" FIRMWARE_VERSION 
-                         " &bull; <span style=\"color:var(--navy);font-weight:600;\">&#128274; TLS 1.3 / HTTPS</span> &bull; Built " FIRMWARE_BUILD_DATE " " FIRMWARE_BUILD_TIME 
+                         "Firmware v" FIRMWARE_VERSION
+                         " &bull; Built " FIRMWARE_BUILD_DATE " " FIRMWARE_BUILD_TIME
                          " &bull; <span style=\"color:var(--green);font-weight:600;\">&#9889; Load: <span id=\"page_load_time\">-- ms</span></span>"
                          "</footer></body></html>"));
     res.end();
@@ -1332,7 +619,7 @@ void WebPortal::renderRoot(ResponseWriter &res) {
     String ntpServer = _prefs.getString(NVS_KEY_NTP_SERVER, NTP_DEFAULT_SERVER);
 
     char framing[8];
-    snprintf(framing, sizeof(framing), "%u%c%u", 
+    snprintf(framing, sizeof(framing), "%u%c%u",
              serialBridge.getDataBits(),
              (serialBridge.getParity() == 1 ? 'O' : (serialBridge.getParity() == 2 ? 'E' : 'N')),
              serialBridge.getStopBits());
@@ -1478,7 +765,21 @@ void WebPortal::renderRoot(ResponseWriter &res) {
         "  document.getElementById('ntp_srv_val').innerText = d.ntp_server || 'pool.ntp.org';\n"
         "  document.getElementById('last_ntp_val').innerText = d.last_ntp_str || '--';\n"
         "}\n"
-        "setInterval(function(){ fetch('/api/status').then(r=>r.json()).then(updateDashboardUI).catch(()=>{}); }, 2500);\n"
+        "var statusPollTimer = null;\n"
+        "var statusPollInFlight = false;\n"
+        "function pollDashboardStatus(){\n"
+        "  if(document.hidden || statusPollInFlight) return;\n"
+        "  statusPollInFlight = true;\n"
+        "  fetch('/api/status').then(r=>r.json()).then(updateDashboardUI).catch(()=>{}).then(function(){\n"
+        "    statusPollInFlight = false;\n"
+        "    if(!document.hidden) statusPollTimer = setTimeout(pollDashboardStatus, 10000);\n"
+        "  });\n"
+        "}\n"
+        "document.addEventListener('visibilitychange', function(){\n"
+        "  if(statusPollTimer){ clearTimeout(statusPollTimer); statusPollTimer = null; }\n"
+        "  if(!document.hidden) pollDashboardStatus();\n"
+        "});\n"
+        "pollDashboardStatus();\n"
         "</script>\n"
     ));
 
@@ -1816,15 +1117,14 @@ void WebPortal::renderTerminal(ResponseWriter &res) {
         "var wsRetryTimer = null;\n"
         "function initWs(){\n"
         "  if(wsRetryTimer){ clearTimeout(wsRetryTimer); wsRetryTimer = null; }\n"
-        "  var isHttps = (location.protocol === 'https:');\n"
-        "  var wsUrl = isHttps ? ('wss://' + location.host + '/ws') : ('ws://' + location.hostname + ':81');\n"
+        "  var wsUrl = 'ws://' + location.hostname + ':81';\n"
         "  try{ if(ws) ws.close(); }catch(e){}\n"
         "  ws = new WebSocket(wsUrl);\n"
         "  ws.binaryType = 'arraybuffer';\n"
         "  ws.onopen = function(){\n"
         "    if(wsRetryTimer){ clearTimeout(wsRetryTimer); wsRetryTimer = null; }\n"
         "    dot.style.background = 'var(--green)';\n"
-        "    stext.innerText = isHttps ? 'Connected (WSS / Port 443)' : 'Connected (WS / Port 81)';\n"
+        "    stext.innerText = 'Connected (WS / Port 81)';\n"
     ));
 
     if (_authRequired) {
@@ -2004,7 +1304,6 @@ void WebPortal::renderSettings(ResponseWriter &res) {
         }
     }
 
-    TlsCertInfo tlsInfo = tlsManager.getCertInfo();
 
     // 1. SYSTEM ACTIONS
     res.sendChunk_P(PSTR(
@@ -2030,7 +1329,7 @@ void WebPortal::renderSettings(ResponseWriter &res) {
         cNet += "    <div style=\"margin-bottom:16px;max-width:440px;\">\n";
         cNet += "      <label style=\"font-size:0.82rem;font-weight:600;display:block;margin-bottom:4px;color:var(--muted);\">Device Hostname (mDNS / OTA / DHCP):</label>\n";
         cNet += "      <input type=\"text\" name=\"dev_host\" id=\"dev_host\" value=\"" + devHost + "\" placeholder=\"esp-oobm\" maxlength=\"32\" class=\"form-control\" style=\"font-family:monospace;\">\n";
-        cNet += "      <small style=\"color:var(--muted);display:block;margin-top:4px;\">Local HTTPS URL: <code>https://" + devHost + ".local/</code></small>\n";
+        cNet += "      <small style=\"color:var(--muted);display:block;margin-top:4px;\">Local URL: <code>http://" + devHost + ".local/</code></small>\n";
         cNet += "    </div>\n";
         cNet += "    <label style=\"display:flex;align-items:center;gap:8px;font-weight:600;font-size:0.9rem;margin-bottom:12px;\">\n";
         cNet += "      <input type=\"checkbox\" name=\"ip_static\" id=\"ip_static\" value=\"1\" " + String(staticEn ? "checked " : "") + "onchange=\"toggleStaticIp(this.checked)\"> Use Static IP Configuration (instead of DHCP)\n";
@@ -2044,59 +1343,6 @@ void WebPortal::renderSettings(ResponseWriter &res) {
         cNet += "    <small style=\"color:var(--muted);display:block;margin-top:8px;\">When unchecked, device dynamically receives network parameters via DHCP from your router.</small>\n";
         cNet += "  </div>\n";
         res.sendChunk(cNet);
-    }
-
-    // 3. TLS / HTTPS SECURITY & CERTIFICATES CARD
-    {
-        String cTls = "";
-        cTls.reserve(1600);
-        cTls += "  <div class=\"table-card\">\n";
-        cTls += "    <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;\">\n";
-        cTls += "      <h3 style=\"margin:0;color:var(--navy);\">&#128274; TLS / HTTPS Security &amp; Certificates</h3>\n";
-        cTls += "      <span class=\"badge " + String(tlsInfo.isCustom ? "badge-tls\">Custom Certificate (SPIFFS)" : "badge-ok\">Built-in Wildcard (Flash)") + "</span>\n";
-        cTls += "    </div>\n";
-        cTls += "    <div style=\"background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px 18px;margin-bottom:16px;\">\n";
-        cTls += "      <div class=\"stat-row\"><span class=\"stat-label\">Certificate Type</span><span class=\"stat-val\" style=\"color:var(--navy);\">" + String(tlsInfo.isCustom ? "Custom User Certificate (SPIFFS Storage)" : "Firmware Default 25-Year Wildcard (Flash ROM)") + "</span></div>\n";
-        cTls += "      <div class=\"stat-row\"><span class=\"stat-label\">Common Name (CN)</span><span class=\"stat-val\">" + tlsInfo.subjectCn + "</span></div>\n";
-        cTls += "      <div class=\"stat-row\"><span class=\"stat-label\">Issuer Authority</span><span class=\"stat-val\">" + tlsInfo.issuer + "</span></div>\n";
-        cTls += "      <div class=\"stat-row\"><span class=\"stat-label\">Valid Until</span><span class=\"stat-val\" style=\"color:var(--green);\">" + tlsInfo.validTo + "</span></div>\n";
-        cTls += "      <div class=\"stat-row\"><span class=\"stat-label\">Key Algorithm</span><span class=\"stat-val\">" + tlsInfo.keyType + "</span></div>\n";
-        cTls += "      <div class=\"stat-row\"><span class=\"stat-label\">Certificate Size</span><span class=\"stat-val\">" + String(tlsInfo.certSizeBytes) + " bytes</span></div>\n";
-        cTls += "    </div>\n";
-        cTls += "    <div style=\"display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px;\">\n";
-        cTls += "      <button type=\"button\" class=\"btn btn-outline btn-sm\" onclick=\"toggleTlsUploadModal()\">&#128229; Upload Custom TLS Certificate</button>\n";
-        if (tlsInfo.isCustom) {
-            cTls += "      <button type=\"button\" class=\"btn btn-outline btn-sm\" style=\"color:var(--danger);border-color:var(--danger);\" onclick=\"resetTlsToDefault()\">&#8634; Revert to Firmware Default Certificate</button>\n";
-        }
-        cTls += "    </div>\n";
-        res.sendChunk(cTls);
-    }
-
-    // Collapsible Upload Section & HTTPS redirect checkbox
-    res.sendChunk_P(PSTR(
-        "    <div id=\"tls_upload_wrap\" style=\"display:none;background:var(--card);border:1px dashed var(--border);border-radius:8px;padding:16px;margin-top:12px;\">\n"
-        "      <h4 style=\"margin:0 0 10px 0;font-size:0.90rem;color:var(--text);\">Upload PEM Certificate &amp; Private Key</h4>\n"
-        "      <p style=\"font-size:0.80rem;color:var(--muted);margin-bottom:12px;\">Supports single cert or full chain (e.g. Let's Encrypt <code>fullchain.pem</code>) and unencrypted private key (ECDSA or RSA <code>privkey.pem</code>).</p>\n"
-        "      <div class=\"form-grid\">\n"
-        "        <div class=\"form-group\"><label>Certificate (.pem / .crt / fullchain):</label><textarea id=\"tls_cert_pem\" class=\"form-control\" style=\"font-family:monospace;font-size:0.75rem;height:120px;\" placeholder=\"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\"></textarea></div>\n"
-        "        <div class=\"form-group\"><label>Private Key (.key / .pem / privkey):</label><textarea id=\"tls_key_pem\" class=\"form-control\" style=\"font-family:monospace;font-size:0.75rem;height:120px;\" placeholder=\"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\"></textarea></div>\n"
-        "      </div>\n"
-        "      <div style=\"margin-top:12px;display:flex;gap:10px;\">\n"
-        "        <button type=\"button\" id=\"btn_install_tls\" class=\"btn btn-green btn-sm\" onclick=\"submitTlsUpload()\">Install &amp; Activate Certificate</button>\n"
-        "        <button type=\"button\" class=\"btn btn-outline btn-sm\" onclick=\"toggleTlsUploadModal()\">Cancel</button>\n"
-        "      </div>\n"
-        "    </div>\n"
-    ));
-
-    {
-        String cTlsRedir = "";
-        cTlsRedir.reserve(600);
-        cTlsRedir += "    <div style=\"margin-top:16px;\">\n";
-        cTlsRedir += "      <label class=\"switch-label\"><input type=\"checkbox\" name=\"https_redir\" value=\"1\" " + String(_httpsRedirect ? "checked " : "") + "> Automatically Redirect Port 80 (HTTP) traffic to Port 443 (HTTPS)</label>\n";
-        cTlsRedir += "    </div>\n";
-        cTlsRedir += "    <small style=\"color:var(--muted);display:block;margin-top:8px;\">Built-in certificate features 25-year validity (2026-2051) and covers wildcard SANs (<code>*.local</code>, <code>*.lan</code>, <code>*.internal</code>, <code>192.168.4.1</code>). TLS acceleration is offloaded directly to ESP32 hardware crypto instructions.</small>\n";
-        cTlsRedir += "  </div>\n";
-        res.sendChunk(cTlsRedir);
     }
 
     // 4. TIME SYNCHRONIZATION & TIMEZONE CARD
@@ -2244,40 +1490,6 @@ void WebPortal::renderSettings(ResponseWriter &res) {
     res.sendChunk_P(PSTR(
         "<script>\n"
         "function toggleStaticIp(chk){ document.getElementById('static_ip_fields').style.display = chk ? 'grid' : 'none'; }\n"
-        "function toggleTlsUploadModal(){\n"
-        "  var w = document.getElementById('tls_upload_wrap');\n"
-        "  w.style.display = (w.style.display === 'none' || !w.style.display) ? 'block' : 'none';\n"
-        "}\n"
-        "function submitTlsUpload(){\n"
-        "  var cert = document.getElementById('tls_cert_pem').value.trim();\n"
-        "  var key = document.getElementById('tls_key_pem').value.trim();\n"
-        "  var btn = document.getElementById('btn_install_tls');\n"
-        "  if(!cert || !key){ showToast('Please enter both Certificate and Private Key', true); return; }\n"
-        "  btn.disabled = true; btn.innerText = 'Validating & Installing...';\n"
-        "  var fd = new FormData();\n"
-        "  fd.append('cert_data', cert);\n"
-        "  fd.append('key_data', key);\n"
-        "  fetch('/api/tls/upload', { method: 'POST', body: fd }).then(r=>r.json()).then(res=>{\n"
-        "    if(res.success){\n"
-        "      showToast(res.msg || 'Certificate installed! Reloading page in 3s...');\n"
-        "      setTimeout(()=>location.reload(), 3000);\n"
-        "    } else {\n"
-        "      btn.disabled = false; btn.innerText = 'Install & Activate Certificate';\n"
-        "      showToast(res.error || 'Failed to parse certificate/key', true);\n"
-        "    }\n"
-        "  }).catch(()=>{\n"
-        "    btn.disabled = false; btn.innerText = 'Install & Activate Certificate';\n"
-        "    showToast('Upload failed or connection dropped', true);\n"
-        "  });\n"
-        "}\n"
-        "function resetTlsToDefault(){\n"
-        "  if(confirm('Revert to built-in 25-Year Wildcard TLS Certificate? Custom certificate will be deleted from SPIFFS.')){\n"
-        "    fetch('/api/tls/reset', { method: 'POST' }).then(r=>r.json()).then(res=>{\n"
-        "      showToast('Restored default certificate. Reloading in 3s...');\n"
-        "      setTimeout(()=>location.reload(), 3000);\n"
-        "    }).catch(()=>showToast('Reset failed', true));\n"
-        "  }\n"
-        "}\n"
         "function syncNtpNow(){\n"
         "  fetch('/api/ntp/sync', { method: 'POST' }).then(r=>r.json()).then(res=>{\n"
         "    showToast('NTP sync triggered!');\n"
@@ -2414,11 +1626,15 @@ void WebPortal::renderWifiPage(ResponseWriter &res) {
         "  var s = document.getElementById('scanned_ssid');\n"
         "  if(btn){ btn.disabled = true; btn.innerHTML = '&#9203; <span>Scanning...</span>'; }\n"
         "  if(s){ s.innerHTML = '<option value=\"\">Scanning networks, please wait...</option>'; }\n"
+        "  var scanDeadline = Date.now() + 15000;\n"
+        "  function finishScan(ready){\n"
+        "    if(scanInterval){ clearTimeout(scanInterval); scanInterval = null; }\n"
+        "    if(btn){ btn.disabled = false; btn.innerHTML = ready ? '&#128260; <span>Rescan</span>' : '&#128269; <span>Scan Networks</span>'; }\n"
+        "  }\n"
         "  function pollScan(){\n"
         "    fetch('/api/scan').then(r=>r.json()).then(res=>{\n"
         "      if(res.status === 'ready' && res.networks){\n"
-        "        if(scanInterval){ clearInterval(scanInterval); scanInterval = null; }\n"
-        "        if(btn){ btn.disabled = false; btn.innerHTML = '&#128260; <span>Rescan</span>'; }\n"
+        "        finishScan(true);\n"
         "        s.innerHTML = '<option value=\"\">-- Select a network (' + res.networks.length + ' found) --</option>';\n"
         "        res.networks.forEach(function(net){\n"
         "          var opt = document.createElement('option');\n"
@@ -2426,20 +1642,15 @@ void WebPortal::renderWifiPage(ResponseWriter &res) {
         "          opt.innerText = net.ssid + ' (' + net.rssi + ' dBm' + (net.secure ? ' \\u{1F512}' : '') + ')';\n"
         "          s.appendChild(opt);\n"
         "        });\n"
-        "      }\n"
-        "    }).catch(function(){});\n"
+        "      } else if(Date.now() < scanDeadline){\n"
+        "        scanInterval = setTimeout(pollScan, 2000);\n"
+        "      } else { finishScan(false); }\n"
+        "    }).catch(function(){\n"
+        "      if(Date.now() < scanDeadline) scanInterval = setTimeout(pollScan, 2000);\n"
+        "      else finishScan(false);\n"
+        "    });\n"
         "  }\n"
         "  pollScan();\n"
-        "  if(!scanInterval){\n"
-        "    scanInterval = setInterval(pollScan, 1000);\n"
-        "    setTimeout(function(){\n"
-        "      if(scanInterval){\n"
-        "        clearInterval(scanInterval);\n"
-        "        scanInterval = null;\n"
-        "        if(btn){ btn.disabled = false; btn.innerHTML = '&#128269; <span>Scan Networks</span>'; }\n"
-        "      }\n"
-        "    }, 15000);\n"
-        "  }\n"
         "}\n"
         "function saveWifi(e){\n"
         "  e.preventDefault();\n"
@@ -2716,7 +1927,7 @@ void WebPortal::handleApiStatus(ResponseWriter &res) {
     }
 
     char framing[8];
-    snprintf(framing, sizeof(framing), "%u%c%u", 
+    snprintf(framing, sizeof(framing), "%u%c%u",
              serialBridge.getDataBits(),
              (serialBridge.getParity() == 1 ? 'O' : (serialBridge.getParity() == 2 ? 'E' : 'N')),
              serialBridge.getStopBits());
@@ -2807,56 +2018,6 @@ void WebPortal::handleApiLogs(ResponseWriter &res) {
     res.end();
 }
 
-void WebPortal::handleApiTlsInfo(ResponseWriter &res) {
-    TlsCertInfo info = tlsManager.getCertInfo();
-    char json[768];
-    snprintf(json, sizeof(json),
-             "{\"is_custom\":%s,\"subject_cn\":\"%s\",\"issuer\":\"%s\",\"valid_to\":\"%s\","
-             "\"key_type\":\"%s\",\"sans\":\"%s\",\"cert_size\":%u,\"key_size\":%u}",
-             info.isCustom ? "true" : "false",
-             info.subjectCn.c_str(),
-             info.issuer.c_str(),
-             info.validTo.c_str(),
-             info.keyType.c_str(),
-             info.sans.c_str(),
-             (unsigned int)info.certSizeBytes,
-             (unsigned int)info.keySizeBytes);
-
-    res.setContentType("application/json");
-    res.sendChunk(json);
-    res.end();
-}
-
-void WebPortal::handleApiTlsUpload(ResponseWriter &res, const String &certPem, const String &keyPem) {
-    res.setContentType("application/json");
-    if (certPem.length() == 0 || keyPem.length() == 0) {
-        res.setStatus(400, "400 Bad Request");
-        res.sendChunk("{\"success\":false,\"error\":\"Missing Certificate or Private Key PEM data\"}");
-        res.end();
-        return;
-    }
-
-    if (tlsManager.saveCustomCert(certPem, keyPem)) {
-        res.sendChunk("{\"success\":true,\"msg\":\"Custom certificate saved! Restarting web server...\"}");
-        res.end();
-        delay(600);
-        reloadTlsCertificates();
-    } else {
-        res.setStatus(400, "400 Bad Request");
-        res.sendChunk("{\"success\":false,\"error\":\"Failed to validate X.509 certificate or private key syntax.\"}");
-        res.end();
-    }
-}
-
-void WebPortal::handleApiTlsReset(ResponseWriter &res) {
-    tlsManager.deleteCustomCert();
-    res.setContentType("application/json");
-    res.sendChunk("{\"success\":true,\"msg\":\"Reverted to built-in wildcard certificate. Restarting web server...\"}");
-    res.end();
-    delay(600);
-    reloadTlsCertificates();
-}
-
 void WebPortal::handleApiSaveSettings(ResponseWriter &res, const String &body) {
     String devHost = extractFormArg(body, "dev_host");
     if (devHost.length() > 0) {
@@ -2871,9 +2032,6 @@ void WebPortal::handleApiSaveSettings(ResponseWriter &res, const String &body) {
     String ipGw   = extractFormArg(body, "ip_gw");   if (ipGw.length() > 0)   _prefs.putString(NVS_KEY_WIFI_GW, ipGw);
     String ipDns  = extractFormArg(body, "ip_dns");  if (ipDns.length() > 0)  _prefs.putString(NVS_KEY_WIFI_DNS, ipDns);
 
-    bool redirEn = (extractFormArg(body, "https_redir") == "1");
-    _prefs.putBool(NVS_KEY_HTTPS_REDIRECT, redirEn);
-    _httpsRedirect = redirEn;
 
     bool ntpEn = (extractFormArg(body, "ntp_en") == "1");
     _prefs.putBool(NVS_KEY_NTP_ENABLED, ntpEn);
@@ -2991,7 +2149,6 @@ void WebPortal::handleApiRestart(ResponseWriter &res) {
 void WebPortal::handleApiFactoryReset(ResponseWriter &res) {
     logger.logWarn("Factory Reset triggered via Web API.");
     _prefs.clear();
-    tlsManager.deleteCustomCert();
     res.setContentType("application/json");
     res.sendChunk("{\"reset\":true}");
     res.end();
@@ -3013,7 +2170,7 @@ void WebPortal::handleApiPlatform(ResponseWriter &res, const String &platform) {
 // =============================================================================
 void WebPortal::handleCaptivePortal() {
     IPAddress ip = WiFi.softAPIP();
-    _server.sendHeader("Location", "https://" + ip.toString() + "/");
+    _server.sendHeader("Location", "http://" + ip.toString() + "/");
     _server.send(302, "text/plain", "");
 }
 

@@ -29,7 +29,6 @@ struct SystemStatsData {
     uint32_t serialRxOverflow;
     uint16_t activeWsClients;
     uint16_t activeTelnetClients;
-    uint16_t activeTlsSockets;
     bool     ntpSynced;
     time_t   currentTime;
 };

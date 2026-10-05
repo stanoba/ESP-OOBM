@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include <freertos/FreeRTOS.h>
 
 enum LogLevel : uint8_t {
     LOG_LVL_INFO = 0,
@@ -11,7 +12,7 @@ enum LogLevel : uint8_t {
 struct LogEntry {
     uint32_t timestamp;  // Epoch seconds if NTP synced, else uptime seconds
     uint8_t  level;
-    char     msg[96];
+    char     msg[128];
 };
 
 class ConsoleLogger {
@@ -24,8 +25,8 @@ public:
     void logWarn(const char *fmt, ...);
     void logError(const char *fmt, ...);
 
-    size_t getCount() const { return _count; }
-    const LogEntry& getEntry(size_t index) const; // 0 is oldest, count-1 is newest
+    size_t getCount() const;
+    LogEntry getEntry(size_t index) const; // 0 is oldest, count-1 is newest
 
 private:
     LogEntry _entries[MAX_LOG_ENTRIES];

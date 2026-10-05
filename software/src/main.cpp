@@ -6,6 +6,9 @@
 #include <ESPmDNS.h>
 #include <ArduinoOTA.h>
 #include <esp_sntp.h>
+#include <esp_log.h>
+#include <stdarg.h>
+#include <stdio.h>
 
 #include "Config.h"
 #include "ConsoleLogger.h"
@@ -15,7 +18,6 @@
 #include "WebTerminal.h"
 #include "MndpDiscovery.h"
 #include "WebPortal.h"
-#include "TlsManager.h"
 
 // =============================================================================
 // Global State & Instances
@@ -32,6 +34,35 @@ static uint32_t s_lastLedBlinkMillis = 0;
 static bool     s_ledState = false;
 static uint32_t s_lastNtpSyncTrigger = 0;
 static bool     s_staWasConnected = false;
+
+// UART0 is also the serial bridge to the managed device (GPIO1/3). Keep
+// ESP-IDF diagnostics out of that byte stream and retain warnings/errors in
+// the dashboard's System Event Log instead.
+static int captureEspIdfLog(const char *format, va_list args) {
+    char line[128];
+    int length = vsnprintf(line, sizeof(line), format, args);
+    if (length > 0) {
+        // ESP-IDF's formatted log text already ends in a newline. Store a
+        // single-line message because the event-log renderers add separators.
+        size_t lineLength = strlen(line);
+        while (lineLength > 0 &&
+               (line[lineLength - 1] == '\r' || line[lineLength - 1] == '\n')) {
+            line[--lineLength] = '\0';
+        }
+
+        const char *severity = line;
+        while (*severity == '\033') {
+            while (*severity && *severity != 'm') ++severity;
+            if (*severity) ++severity;
+        }
+        if (*severity == 'E') {
+            logger.logError("%s", line);
+        } else if (*severity == 'W') {
+            logger.logWarn("%s", line);
+        }
+    }
+    return length;
+}
 
 // =============================================================================
 // SNTP Notification Callback & Trigger Helper
@@ -164,6 +195,11 @@ void setup() {
     pinMode(PIN_LED_STATUS, OUTPUT);
     digitalWrite(PIN_LED_STATUS, !LED_ACTIVE_LEVEL);
 
+    // The default ESP-IDF console is UART0, shared with SerialBridge.
+    // Capture runtime warnings/errors in the event log without injecting
+    // diagnostic text into the managed device's serial session.
+    esp_log_set_vprintf(captureEspIdfLog);
+
     preferences.begin(NVS_NAMESPACE, false);
 
     // Initialize Serial Console Bridge
@@ -173,17 +209,13 @@ void setup() {
     // Initialize Wi-Fi
     setupWiFi(preferences);
 
-    // Initialize TLS Certificate Manager (SPIFFS / Flash Default)
-    tlsManager.begin();
-
     // Initialize Hostname & mDNS
     String hostname = getDeviceHostname(preferences);
     if (MDNS.begin(hostname.c_str())) {
         MDNS.addService("http", "tcp", HTTP_PORT);
-        MDNS.addService("https", "tcp", HTTPS_PORT);
         MDNS.addService("telnet", "tcp", TELNET_PORT);
         MDNS.addService("oobm", "tcp", WEBSOCKET_PORT);
-        logger.logInfo("mDNS responder started: https://%s.local", hostname.c_str());
+        logger.logInfo("mDNS responder started: http://%s.local", hostname.c_str());
     }
 
     // Initialize ArduinoOTA
@@ -203,7 +235,7 @@ void setup() {
     // Initialize MNDP Discovery
     mndpDiscovery.begin(preferences);
 
-    // Initialize Web Portal & HTTP/HTTPS Routes
+    // Initialize HTTP Web Portal Routes
     portal.begin();
 
     logger.logInfo("System ready. Listening for incoming connections.");
@@ -218,14 +250,13 @@ void loop() {
     // 1. Drain Hardware UART into static ring buffer
     serialBridge.loop();
 
-    // 2. Broadcast incoming Serial bytes to active WebSocket, WSS, and Telnet clients
+    // 2. Broadcast incoming Serial bytes to active WebSocket and Telnet clients
     size_t avail = serialBridge.available();
     if (avail > 0) {
         uint8_t streamBuf[256];
         size_t readLen = serialBridge.readBytes(streamBuf, sizeof(streamBuf));
         if (readLen > 0) {
             webTerminal.broadcast(streamBuf, readLen);
-            portal.broadcastWs(streamBuf, readLen);
             telnetServer.broadcast(streamBuf, readLen);
         }
     }

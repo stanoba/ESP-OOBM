@@ -40,7 +40,6 @@ void setLedWifi(bool on);
 // Network & Protocol Ports
 // =============================================================================
 #define HTTP_PORT                   80
-#define HTTPS_PORT                  443
 #define WEBSOCKET_PORT              81
 #define TELNET_PORT                 23
 #define DNS_PORT                    53
@@ -87,7 +86,6 @@ void setLedWifi(bool on);
 #define NVS_KEY_AUTH_EN             "auth_en"
 #define NVS_KEY_AUTH_USER           "auth_user"
 #define NVS_KEY_AUTH_PASS           "auth_pass"
-#define NVS_KEY_HTTPS_REDIRECT      "https_redir"
 
 // Serial Bridge
 #define NVS_KEY_SER_BAUD            "ser_baud"
