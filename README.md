@@ -83,7 +83,12 @@ pio run -e esp32_pico_d4 -t erase
 pio run -e esp32_pico_d4 -t upload
 ```
 
-### 4. Initial Connection
+### 4. Run Unit Tests (optional, no hardware)
+```powershell
+pio test -e native
+```
+
+### 5. Initial Connection
 1. **Wi-Fi Mode**: Connect to **`ESP-OOBM-XXXXXX`** (Password: **`oobmadm123`**), open **`http://192.168.4.1/`** (User: **`admin`**, Pass: **`oobmadm123`**).
 
 ---

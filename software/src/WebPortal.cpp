@@ -1,5 +1,6 @@
 #include "WebPortal.h"
 #include "VectorGraphics.h"
+#include "WebUtils.h"
 #include "Timezones.h"
 #include "SerialBridge.h"
 #include "TelnetServer.h"
@@ -33,12 +34,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
 .nav-inner{max-width:1200px;margin:0 auto;padding:0 18px;width:100%;display:flex;align-items:center;justify-content:space-between;position:relative;}
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0;}
 .brand svg{height:46px;width:auto;display:block;}
-html.light .brand-title-main{fill:#0f172a!important;}
-html.light .brand-title-prefix{fill:#0284c7!important;}
-html.light .brand-sub{fill:#059669!important;}
+html.light .brand-title-main{fill:#091a36!important;}
+html.light .brand-title-prefix{fill:#0284c7!important;stroke:#0284c7!important;}
+html.light .brand-sub{fill:#009aa0!important;}
 html:not(.light) .brand-title-main{fill:#f8fafc!important;}
-html:not(.light) .brand-title-prefix{fill:#38bdf8!important;}
-html:not(.light) .brand-sub{fill:#34d399!important;}
+html:not(.light) .brand-title-prefix{fill:#38bdf8!important;stroke:#38bdf8!important;}
+html:not(.light) .brand-sub{fill:#2dd4bf!important;}
 .nav-links{display:flex;gap:8px;align-items:center;}
 .nav-link{padding:6px 14px;border-radius:6px;font-size:0.90rem;font-weight:600;text-decoration:none;color:var(--muted);border:1px solid transparent;transition:all 0.15s;}
 .nav-link:hover{color:var(--text);background:var(--hover);}
@@ -215,90 +216,6 @@ static const char PWD_EYE_TOGGLE_HTML[] PROGMEM =
 "<svg class=\"eye-open\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>"
 "<svg class=\"eye-closed\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"display:none;\"><path d=\"M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24\"/><line x1=\"1\" y1=\"1\" x2=\"23\" y2=\"23\"/></svg>"
 "</button>";
-
-// =============================================================================
-// Helper: URL decoding and Form Argument Extraction
-// =============================================================================
-static String urlDecode(const String &src) {
-    String decoded = "";
-    decoded.reserve(src.length());
-    char a, b;
-    for (size_t i = 0; i < src.length(); i++) {
-        if (src[i] == '%') {
-            if (i + 2 < src.length()) {
-                a = src[i+1];
-                b = src[i+2];
-                if (isxdigit(a) && isxdigit(b)) {
-                    a = (a >= 'a') ? (a - 'a' + 10) : ((a >= 'A') ? (a - 'A' + 10) : (a - '0'));
-                    b = (b >= 'a') ? (b - 'a' + 10) : ((b >= 'A') ? (b - 'A' + 10) : (b - '0'));
-                    decoded += (char)((a << 4) | b);
-                    i += 2;
-                    continue;
-                }
-            }
-        } else if (src[i] == '+') {
-            decoded += ' ';
-        } else {
-            decoded += src[i];
-        }
-    }
-    return decoded;
-}
-
-static String extractFormArg(const String &body, const String &key) {
-    int keyIdx = body.indexOf(key + "=");
-    while (keyIdx != -1) {
-        if (keyIdx == 0 || body[keyIdx - 1] == '&' || body[keyIdx - 1] == '?') {
-            int valStart = keyIdx + key.length() + 1;
-            int valEnd = body.indexOf('&', valStart);
-            if (valEnd == -1) valEnd = body.length();
-            return urlDecode(body.substring(valStart, valEnd));
-        }
-        keyIdx = body.indexOf(key + "=", keyIdx + 1);
-    }
-    String jsonKey = "\"" + key + "\":";
-    int jIdx = body.indexOf(jsonKey);
-    if (jIdx != -1) {
-        int vStart = jIdx + jsonKey.length();
-        while (vStart < (int)body.length() && (body[vStart] == ' ' || body[vStart] == '\"')) vStart++;
-        int vEnd = vStart;
-        while (vEnd < (int)body.length() && body[vEnd] != '\"' && body[vEnd] != ',' && body[vEnd] != '}') vEnd++;
-        return body.substring(vStart, vEnd);
-    }
-    int nameIdx = body.indexOf("name=\"" + key + "\"");
-    if (nameIdx != -1) {
-        int dataStart = body.indexOf("\r\n\r\n", nameIdx);
-        if (dataStart != -1) {
-            dataStart += 4;
-            int dataEnd = body.indexOf("\r\n--", dataStart);
-            if (dataEnd != -1) {
-                return body.substring(dataStart, dataEnd);
-            }
-        }
-    }
-    return "";
-}
-
-static String encodeFormValue(const String &value) {
-    static const char HEX_DIGITS[] = "0123456789ABCDEF";
-    String encoded;
-    encoded.reserve(value.length() * 3);
-    for (size_t i = 0; i < value.length(); ++i) {
-        uint8_t ch = (uint8_t)value[i];
-        if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
-            (ch >= '0' && ch <= '9') || ch == '-' || ch == '_' ||
-            ch == '.' || ch == '~') {
-            encoded += (char)ch;
-        } else if (ch == ' ') {
-            encoded += '+';
-        } else {
-            encoded += '%';
-            encoded += HEX_DIGITS[ch >> 4];
-            encoded += HEX_DIGITS[ch & 0x0F];
-        }
-    }
-    return encoded;
-}
 
 static String getRequestFormBody(WebServer &server) {
     if (server.hasArg("plain")) return server.arg("plain");

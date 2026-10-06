@@ -88,3 +88,11 @@ The top-right header contains a 3-way theme selector:
 - 💻 **System Theme**: Automatically tracks the OS/browser color scheme (`prefers-color-scheme: dark`) and switches dynamically.
 
 Preference is stored in browser `localStorage.setItem('oobm_theme', ...)` for persistence across reloads.
+ 
+---
+
+## Offline & Air-Gapped Architecture
+
+- **Zero External CDNs / Fonts**: All brand assets (Logo, Favicon) are compiled directly into firmware flash (`PROGMEM`) as raw SVG bezier paths.
+- **AP-Mode Integrity**: Renders identically without internet access or DNS resolution to third-party font servers.
+- **Zero-RAM Footprint**: Assets are streamed chunk-by-chunk directly from flash memory without dynamic heap allocations.

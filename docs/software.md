@@ -56,6 +56,8 @@ All firmware source code is located in the [`software/`](../software/) directory
 | **MndpDiscovery** | [`MndpDiscovery.h`](../software/include/MndpDiscovery.h) | [`MndpDiscovery.cpp`](../software/src/MndpDiscovery.cpp) | Broadcasts MikroTik Neighbor Discovery Protocol (MNDP) UDP packets every 60s for automatic device discovery in MikroTik Winbox. |
 | **ConsoleLogger** | [`ConsoleLogger.h`](../software/include/ConsoleLogger.h) | [`ConsoleLogger.cpp`](../software/src/ConsoleLogger.cpp) | In-memory circular log buffer holding the last 100 system events with ISO 8601 timestamps and severity levels (INFO, WARN, ERROR). |
 | **SystemStats** | [`SystemStats.h`](../software/include/SystemStats.h) | [`SystemStats.cpp`](../software/src/SystemStats.cpp) | Calculates real-time CPU load estimations, heap fragmentation index, minimum free heap, uptime, and Wi-Fi signal quality. |
+| **VectorGraphics** | [`VectorGraphics.h`](../software/include/VectorGraphics.h) | Header-only (PROGMEM) | Statically stored pure SVG vector paths (Logo, Favicon) with zero dynamic RAM allocation and 100% offline AP-mode readiness. |
+| **WebUtils** | [`WebUtils.h`](../software/include/WebUtils.h) | Header-only (inline) | Hardware-independent URL decoding and form/JSON/multipart argument parsing used by WebPortal; covered by native unit tests. |
 
 ---
 

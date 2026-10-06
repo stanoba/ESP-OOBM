@@ -40,6 +40,23 @@ pio run -e esp32_pico_d4 -t upload
 
 ---
 
+## Unit Tests (host, no hardware)
+
+```powershell
+pio test -e native
+```
+
+| Suite | Covers |
+| :--- | :--- |
+| `test_web_utils` | `urlDecode`, `encodeFormValue`, `extractFormArg` ([`WebUtils.h`](include/WebUtils.h)) |
+| `test_vector_graphics` | Logo/favicon SVG integrity, no external font links in `WebPortal.cpp` |
+| `test_console_logger` | Ring buffer order, wrap-around, truncation |
+| `test_timezones` | Timezone table validity and uniqueness |
+
+Mocks live in [`test/include/`](test/include/) (`Arduino.h`, `freertos/FreeRTOS.h`).
+
+---
+
 ## Related Documentation
 
 * 📖 **[Software & Firmware Architecture Guide](../docs/software.md)**
