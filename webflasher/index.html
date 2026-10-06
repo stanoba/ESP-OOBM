@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP-OOBM Web Installer | One-Click Browser Flasher</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f172a'/%3E%3Crect x='10' y='2' width='12' height='7' rx='1.5' fill='%2364748b'/%3E%3Crect x='6' y='8' width='20' height='21' rx='3.5' fill='%2310b981'/%3E%3Cpath d='M16 12v7M13 16l3 3 3-3' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  
+  <style>
+    :root {
+      --bg: #0b1120;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --primary: #10b981;
+      --primary-hover: #059669;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --danger: #ef4444;
+      --code-bg: #0f172a;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+    }
+
+    .container {
+      max-width: 800px;
+      width: 100%;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .logo-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .logo-badge svg {
+      width: 48px;
+      height: 48px;
+      filter: drop-shadow(0 4px 12px rgba(16, 185, 129, 0.3));
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      color: #ffffff;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+      max-width: 600px;
+      margin: 8px auto 0 auto;
+    }
+
+    .badges {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .badge {
+      background: rgba(51, 65, 85, 0.6);
+      border: 1px solid var(--card-border);
+      color: var(--accent);
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 24px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+    }
+
+    .flasher-box {
+      text-align: center;
+      padding: 36px 20px;
+      background: radial-gradient(circle at center, rgba(16, 185, 129, 0.08) 0%, rgba(30, 41, 59, 1) 70%);
+      border-radius: 12px;
+      border: 1px dashed rgba(16, 185, 129, 0.4);
+      margin-bottom: 24px;
+    }
+
+    esp-web-install-button {
+      display: inline-block;
+    }
+
+    .install-btn {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #ffffff;
+      border: none;
+      padding: 16px 36px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      border-radius: 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 10px 20px -3px rgba(16, 185, 129, 0.4);
+      transition: all 0.2s ease;
+    }
+
+    .install-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 28px -4px rgba(16, 185, 129, 0.5);
+      background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+    }
+
+    .install-btn svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .unsupported-msg {
+      color: #fca5a5;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-top: 12px;
+      font-size: 0.9rem;
+      display: inline-block;
+    }
+
+    h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    ol.steps {
+      padding-left: 20px;
+      color: var(--text);
+    }
+
+    ol.steps li {
+      margin-bottom: 12px;
+    }
+
+    ol.steps li strong {
+      color: var(--accent);
+    }
+
+    .credentials-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 0.9rem;
+    }
+
+    .credentials-table th, .credentials-table td {
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .credentials-table th {
+      background: rgba(15, 23, 42, 0.6);
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .credentials-table code {
+      background: var(--code-bg);
+      color: #38bdf8;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.88rem;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 32px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div class="logo-badge">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="48" height="48" rx="10" fill="#0f172a"/>
+          <rect x="16" y="4" width="16" height="10" rx="2" fill="#64748b"/>
+          <rect x="10" y="12" width="28" height="30" rx="5" fill="#10b981"/>
+          <path d="M24 18v11M19.5 24.5l4.5 4.5 4.5-4.5" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <h1>ESP-OOBM Web Installer</h1>
+      </div>
+      <p class="subtitle">Wireless Out-of-Band Serial Management Dongle for ESP32-PICO-D4 (ESP32 KEY V1.0) &amp; WCH CH343P USB-to-UART.</p>
+      
+      <div class="badges">
+        <span class="badge">ESP32-PICO-D4 (240 MHz)</span>
+        <span class="badge">WCH CH343P USB CDC</span>
+        <span class="badge">Firmware v1.0.1</span>
+        <span class="badge">Zero Drivers Required</span>
+      </div>
+    </header>
+
+    <div class="card">
+      <div class="flasher-box">
+        <esp-web-install-button manifest="manifest.json">
+          <button slot="activate" class="install-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+            </svg>
+            <span>Connect &amp; Flash ESP-OOBM</span>
+          </button>
+          
+          <span slot="unsupported" class="unsupported-msg">
+            &#9888; Web Serial is not supported in this browser. Please use <strong>Google Chrome</strong>, <strong>Microsoft Edge</strong>, <strong>Opera</strong>, or <strong>Brave</strong> on a desktop PC or Mac.
+          </span>
+          
+          <span slot="not-allowed" class="unsupported-msg">
+            &#9888; Web Serial requires a secure HTTPS connection.
+          </span>
+        </esp-web-install-button>
+
+        <p style="margin-top: 14px; font-size: 0.85rem; color: var(--text-muted);">
+          Supports automatic DTR/RTS flashing &bull; Live serial monitor directly in browser
+        </p>
+      </div>
+
+      <h2>&#128640; Quick Flashing Steps</h2>
+      <ol class="steps">
+        <li><strong>Plug in Dongle:</strong> Insert your ESP-OOBM USB dongle into your computer's USB port.</li>
+        <li><strong>Click Connect:</strong> Press the green <em>Connect &amp; Flash ESP-OOBM</em> button above.</li>
+        <li><strong>Select Serial Port:</strong> Choose the serial port corresponding to the CH343P / USB CDC device.</li>
+        <li><strong>Install &amp; Erase:</strong> Select <em>Install ESP-OOBM</em> (check <em>Erase Device</em> on first flash) and wait ~30 seconds for completion.</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>&#128260; Wireless OTA Firmware Update (For Existing Devices)</h2>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 14px;">
+        If you already have ESP-OOBM installed, you can update wirelessly without USB:
+      </p>
+
+      <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;">
+        <a href="firmware/esp-oobm-firmware.bin" download class="badge" style="text-decoration: none; padding: 10px 18px; font-size: 0.92rem; background: var(--card-border); color: #ffffff; display: inline-flex; align-items: center; gap: 8px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Download OTA Firmware (.bin)
+        </a>
+      </div>
+
+      <ol class="steps">
+        <li>Open your device Web Portal at <code>http://&lt;device-ip&gt;/update</code>.</li>
+        <li>Select the downloaded <code>esp-oobm-firmware.bin</code> and click <strong>Update Firmware</strong>.</li>
+        <li>Device will flash the update into the inactive partition, reboot, and verify the new version seamlessly.</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>&#128273; Default Network &amp; Security Credentials</h2>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 12px;">
+        Once flashing completes, the device will start its initial Wi-Fi Access Point:
+      </p>
+
+      <table class="credentials-table">
+        <thead>
+          <tr>
+            <th>Interface / Service</th>
+            <th>Default Value</th>
+            <th>Protocol / Port</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Wi-Fi Access Point (SSID)</strong></td>
+            <td><code>ESP-OOBM-XXXXXX</code></td>
+            <td>WPA2-PSK (802.11 b/g/n)</td>
+          </tr>
+          <tr>
+            <td><strong>Wi-Fi Password</strong></td>
+            <td><code>oobmadm123</code></td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td><strong>Web Management URL</strong></td>
+            <td><code>http://192.168.4.1/</code></td>
+            <td>HTTP (Port 80)</td>
+          </tr>
+          <tr>
+            <td><strong>Web &amp; Telnet Login</strong></td>
+            <td>User: <code>admin</code> | Pass: <code>oobmadm123</code></td>
+            <td>Web / WS (:81) / Telnet (:23)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <footer>
+      <p>
+        <a href="https://github.com/stanoba/ESP-OOBM" target="_blank" rel="noopener">GitHub Repository</a> &bull;
+        <a href="https://github.com/stanoba/ESP-OOBM/releases" target="_blank" rel="noopener">Releases &amp; Binaries</a> &bull;
+        <a href="https://github.com/stanoba/ESP-OOBM/blob/main/docs/hardware.md" target="_blank" rel="noopener">Hardware Guide</a>
+      </p>
+      <p style="margin-top: 8px;">Open-source hardware &amp; firmware under MIT License.</p>
+    </footer>
+  </div>
+
+</body>
+</html>
