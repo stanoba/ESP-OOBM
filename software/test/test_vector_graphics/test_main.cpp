@@ -14,11 +14,27 @@ static int countOccurrences(const std::string &hay, const std::string &needle) {
     return n;
 }
 
-static std::string readFile(const char *path) {
-    std::ifstream f(path, std::ios::binary);
-    std::stringstream ss;
-    ss << f.rdbuf();
-    return ss.str();
+static std::string readFile(const char *relPath) {
+    const char *candidates[] = {
+        relPath,
+        "software/src/WebPortal.cpp",
+        "src/WebPortal.cpp",
+        "../src/WebPortal.cpp",
+        "../../src/WebPortal.cpp",
+        "../../../software/src/WebPortal.cpp"
+    };
+    for (const char *cand : candidates) {
+        std::ifstream f(cand, std::ios::binary);
+        if (f.is_open()) {
+            std::stringstream ss;
+            ss << f.rdbuf();
+            std::string content = ss.str();
+            if (content.size() > 500) {
+                return content;
+            }
+        }
+    }
+    return "";
 }
 
 // Logo must stay a pure vector: no <text>, no font dependency (AP / offline mode).
