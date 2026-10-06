@@ -126,7 +126,8 @@ pio test -e native
 | **Telnet Daemon** | **Telnet (Port 23)** | — | `oobmadm123` | Password prompt on connection (RFC 854) |
 | **Prometheus / REST API** | **HTTP (Port 80)** | `admin` | `oobmadm123` | HTTP Basic Auth & Session Tokens |
 
-> Web credentials can be changed in **Settings &rarr; Web & API Security**.
+> [!IMPORTANT]
+> Web and AP credentials can be changed in **Settings &rarr; Web & API Security**. For hardware threat models, silicon vulnerability analysis, and production hardening guidelines, see [`docs/security.md`](docs/security.md).
 
 ---
 
@@ -134,7 +135,7 @@ pio test -e native
 
 ESP-OOBM features an interactive web console with 16-color ANSI terminal emulation, touch macro keys (`ESC`, `TAB`, `Ctrl+C`, `Ctrl+Z`, `Ctrl+D`), and instant command presets for RouterOS, Linux, Cisco IOS, and pfSense.
 
-![WebTerminal Console (Light Theme)](assets/ui-dashboard-light.png)
+![WebTerminal Console (Light Theme)](assets/ui-terminal-light.png)
 
 > [!TIP]
 > For complete dashboard screenshots, dark mode preview, and mobile usage guides, see [`docs/ui-guide.md`](docs/ui-guide.md).
