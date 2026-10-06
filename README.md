@@ -68,13 +68,22 @@ flowchart LR
 
 ## Quick Start: Installation & Flashing
 
-### Option A: One-Click Web Installer (No Software Required)
-Plug your ESP-OOBM dongle into your computer and flash directly from Chrome, Edge, or Brave:
-👉 **[Open ESP-OOBM Web Installer](https://stanoba.github.io/ESP-OOBM/webflasher/)**
+### 🚀 Option A: One-Click Web Installer (Recommended)
+
+No installation of Python, esptool, or serial drivers required. Plug your ESP-OOBM USB dongle into your computer and flash directly from **Google Chrome**, **Microsoft Edge**, **Opera**, or **Brave**:
+
+[![Launch Web Installer](https://img.shields.io/badge/⚡_Launch_Web_Installer-One--Click_Browser_Flash-10b981?style=for-the-badge&logo=googlechrome&logoColor=white)](https://stanoba.github.io/ESP-OOBM/webflasher/)
+
+[![ESP-OOBM Web Installer](assets/ui-webflasher.png)](https://stanoba.github.io/ESP-OOBM/webflasher/)
+
+1. Open **[ESP-OOBM Web Installer](https://stanoba.github.io/ESP-OOBM/webflasher/)** in Chrome, Edge, or Brave.
+2. Click **Connect & Flash ESP-OOBM** and select your USB serial device (CH343 / USB CDC).
+3. Select **Install ESP-OOBM** (check *Erase Device* on first flash) and wait ~30 seconds.
+4. Connect to Wi-Fi **`ESP-OOBM-XXXXXX`** (Password: **`oobmadm123`**) and open **`http://192.168.4.1/`**.
 
 ---
 
-### Option B: Build & Flash via PlatformIO / CLI
+### 💻 Option B: Build & Flash via PlatformIO / CLI
 
 #### 1. Compile Firmware
 ```powershell

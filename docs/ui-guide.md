@@ -48,6 +48,14 @@ Form-based login dialog with animated focus outlines and theme toggle:
 
 ---
 
+### 5. Web Installer & Flasher
+
+Browser-based Web Serial installer for single-click flashing directly from Chrome, Edge, and Brave:
+
+[![Web Installer](../assets/ui-webflasher.png)](../assets/ui-webflasher.png)
+
+---
+
 ## WebTerminal Features & Operation
 
 The WebTerminal connects directly to the ESP32 WebSocket daemon on port `81` (`ws://<ip>:81`) to deliver real-time, low-latency serial streaming.
