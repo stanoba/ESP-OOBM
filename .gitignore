@@ -13,6 +13,9 @@
 *.o
 *.a
 
+# Allow webflasher release binaries for GitHub Pages
+!webflasher/firmware/*.bin
+
 .temp
 scratch/
 dist/
