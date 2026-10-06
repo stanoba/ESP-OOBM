@@ -8,7 +8,7 @@
 // =============================================================================
 #define FIRMWARE_NAME               "ESP-OOBM"
 #define FIRMWARE_DESCRIPTION        "Wireless Out-of-Band Management Dongle"
-#define FIRMWARE_VERSION            "1.0.0"
+#define FIRMWARE_VERSION            "1.0.1"
 #define FIRMWARE_BUILD_DATE         __DATE__
 #define FIRMWARE_BUILD_TIME         __TIME__
 #define DEFAULT_HOSTNAME            "esp-oobm"

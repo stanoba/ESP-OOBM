@@ -2,7 +2,7 @@
 
 [![PlatformIO Build](https://img.shields.io/badge/PlatformIO-ESP32--PICO--D4-orange.svg)](https://platformio.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Firmware Version](https://img.shields.io/badge/Version-v1.0.0-emerald.svg)](software/include/Config.h)
+[![Firmware Version](https://img.shields.io/badge/Version-v1.0.1-emerald.svg)](software/include/Config.h)
 [![Schematic](https://img.shields.io/badge/Hardware-Schematic%20(SVG)-teal.svg)](assets/schematic.svg)
 
 Open-source wireless Out-of-Band (OOB) serial console bridge for **ESP32-PICO-D4 USB Key (ESP32 KEY V1.0)** with **CH343P USB-to-UART bridge**.
