@@ -2,12 +2,14 @@
 
 [![PlatformIO Build](https://img.shields.io/badge/PlatformIO-ESP32--PICO--D4-orange.svg)](https://platformio.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Firmware Version](https://img.shields.io/badge/Version-v1.0.0-emerald.svg)](software/include/Config.h)
+[![Firmware Version](https://img.shields.io/badge/Version-v1.0.1-emerald.svg)](software/include/Config.h)
 [![Schematic](https://img.shields.io/badge/Hardware-Schematic%20(SVG)-teal.svg)](assets/schematic.svg)
 
 Open-source wireless Out-of-Band (OOB) serial console bridge for **ESP32-PICO-D4 USB Key (ESP32 KEY V1.0)** with **CH343P USB-to-UART bridge**.
 
 Plug into any router, switch, firewall, or server USB port for emergency root console access over Wi-Fi (WebTerminal / Telnet).
+
+![ESP-OOBM WebTerminal Console](assets/ui-terminal-light.png)
 
 ---
 
@@ -83,23 +85,28 @@ pio run -e esp32_pico_d4 -t erase
 pio run -e esp32_pico_d4 -t upload
 ```
 
-### 4. Initial Connection
+### 4. Run Unit Tests (optional, no hardware)
+```powershell
+pio test -e native
+```
+
+### 5. Initial Connection
 1. **Wi-Fi Mode**: Connect to **`ESP-OOBM-XXXXXX`** (Password: **`oobmadm123`**), open **`http://192.168.4.1/`** (User: **`admin`**, Pass: **`oobmadm123`**).
 
 ---
 
-## Default Security Credentials
+## Default Security & Network Credentials
 
-| Service / Interface | Username | Default Password | Notes |
-| :--- | :---: | :---: | :--- |
-| **Wi-Fi Access Point (AP)** | — | `oobmadm123` | WPA2-PSK Protected (SSID: `ESP-OOBM-XXXXXX`) |
-| **Web Dashboard / Portal** | `admin` | `oobmadm123` | Form Login + Session Cookie (Captive Portal safe) |
-| **WebTerminal (Port 81)** | `admin` | `oobmadm123` | Auto-authenticated when accessing via WebUI |
-| **Telnet Daemon (Port 23)** | — | `oobmadm123` | Password prompt on connection |
-| **Prometheus / REST API** | `admin` | `oobmadm123` | HTTP Basic Auth & Session Tokens |
+| Service / Interface | Protocol / Port | Username | Default Password | Notes |
+| :--- | :---: | :---: | :---: | :--- |
+| **Wi-Fi Access Point (AP)** | 802.11 b/g/n | — | `oobmadm123` | WPA2-PSK Protected (SSID: `ESP-OOBM-XXXXXX`) |
+| **Web Management** | **HTTP (Port 80)** | `admin` | `oobmadm123` | Dashboard, settings, and management API |
+| **Captive Portal / HTTP** | **HTTP (Port 80)** | `admin` | `oobmadm123` | Captive portal detection and local management |
+| **WebSocket Console** | **WS (Port 81)** | `admin` | `oobmadm123` | WebSocket bridge directly to UART0 |
+| **Telnet Daemon** | **Telnet (Port 23)** | — | `oobmadm123` | Password prompt on connection (RFC 854) |
+| **Prometheus / REST API** | **HTTP (Port 80)** | `admin` | `oobmadm123` | HTTP Basic Auth & Session Tokens |
 
-> [!TIP]
-> Credentials can be changed at any time in **Settings &rarr; Web & API Security** and **Telnet Console Service**.
+> Web credentials can be changed in **Settings &rarr; Web & API Security**.
 
 ---
 
@@ -107,7 +114,7 @@ pio run -e esp32_pico_d4 -t upload
 
 ESP-OOBM features an interactive web console with 16-color ANSI terminal emulation, touch macro keys (`ESC`, `TAB`, `Ctrl+C`, `Ctrl+Z`, `Ctrl+D`), and instant command presets for RouterOS, Linux, Cisco IOS, and pfSense.
 
-![WebTerminal Console (Light Theme)](assets/ui-terminal-light.png)
+![WebTerminal Console (Light Theme)](assets/ui-dashboard-light.png)
 
 > [!TIP]
 > For complete dashboard screenshots, dark mode preview, and mobile usage guides, see [`docs/ui-guide.md`](docs/ui-guide.md).
@@ -121,15 +128,18 @@ ESP-OOBM features an interactive web console with 16-color ANSI terminal emulati
 # 1. Verify USB serial port detection
 /port print
 
-# 2. Set global default console terminal to xterm (persists across reboots/USB hot-plugs)
-/system console settings set default-term=xterm
+# 2. View active console configuration
+/system console print detail
 
-# 3. Redirect root console to USB dongle with full xterm ANSI color support (115200 baud)
+# 3. Set terminal emulation to xterm on all console ports
+/system console set [find] term=xterm
+
+# 4. (Optional) Redirect root console to USB dongle if not attached automatically
 /system console add port=usb1 channel=0 term=xterm disabled=no
 ```
 
 > [!NOTE]
-> When logging in via serial/telnet, append `+c` to your username (e.g. `admin+c`) to force color syntax highlighting in RouterOS CLI.
+> When logging in via serial/telnet, append `+c` to your username (e.g. `admin+c`) to enable color syntax highlighting in RouterOS CLI.
 
 ### Linux / OpenWrt / Debian / Ubuntu (`systemd`)
 ```bash

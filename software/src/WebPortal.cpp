@@ -1,5 +1,6 @@
 #include "WebPortal.h"
 #include "VectorGraphics.h"
+#include "WebUtils.h"
 #include "Timezones.h"
 #include "SerialBridge.h"
 #include "TelnetServer.h"
@@ -10,6 +11,9 @@
 #include <Update.h>
 #include <esp_sntp.h>
 
+#define WEBPORTAL_STRINGIFY_IMPL(value) #value
+#define WEBPORTAL_STRINGIFY(value) WEBPORTAL_STRINGIFY_IMPL(value)
+
 extern void triggerNtpSync();
 extern time_t g_lastNtpSyncTimestamp;
 extern bool g_ntpSynced;
@@ -17,7 +21,7 @@ extern bool g_ntpSynced;
 // =============================================================================
 // CSS Stylesheet in Flash ROM (PROGMEM) - Zero RAM Allocation
 // =============================================================================
-static const char COMMON_CSS[] PROGMEM = 
+static const char COMMON_CSS[] PROGMEM =
 R"rawliteral(
 html{box-sizing:border-box;overflow-y:scroll;}
 *,*::before,*::after{box-sizing:inherit;}
@@ -30,12 +34,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
 .nav-inner{max-width:1200px;margin:0 auto;padding:0 18px;width:100%;display:flex;align-items:center;justify-content:space-between;position:relative;}
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0;}
 .brand svg{height:46px;width:auto;display:block;}
-html.light .brand-title-main{fill:#0f172a!important;}
-html.light .brand-title-prefix{fill:#0284c7!important;}
-html.light .brand-sub{fill:#059669!important;}
+html.light .brand-title-main{fill:#091a36!important;}
+html.light .brand-title-prefix{fill:#0284c7!important;stroke:#0284c7!important;}
+html.light .brand-sub{fill:#009aa0!important;}
 html:not(.light) .brand-title-main{fill:#f8fafc!important;}
-html:not(.light) .brand-title-prefix{fill:#38bdf8!important;}
-html:not(.light) .brand-sub{fill:#34d399!important;}
+html:not(.light) .brand-title-prefix{fill:#38bdf8!important;stroke:#38bdf8!important;}
+html:not(.light) .brand-sub{fill:#2dd4bf!important;}
 .nav-links{display:flex;gap:8px;align-items:center;}
 .nav-link{padding:6px 14px;border-radius:6px;font-size:0.90rem;font-weight:600;text-decoration:none;color:var(--muted);border:1px solid transparent;transition:all 0.15s;}
 .nav-link:hover{color:var(--text);background:var(--hover);}
@@ -63,7 +67,7 @@ html:not(.light) .brand-sub{fill:#34d399!important;}
 .grid-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:24px;}
 .card, .table-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px 20px;box-shadow:0 4px 12px rgba(0,0,0,0.06);position:relative;margin-bottom:20px;}
 .card h3, .table-card h3{margin:0 0 12px 0;font-size:0.92rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);font-weight:700;display:flex;align-items:center;justify-content:space-between;}
-.card .val{font-size:1.85rem;font-weight:700;font-family:Consolas,monospace;color:var(--text);line-height:1.2;}
+.card .val{font-size:1.55rem;font-weight:700;font-family:Consolas,Menlo,Monaco,monospace;color:var(--text);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .card .val.val-accent{color:var(--navy);}
 .card .val.val-green{color:var(--green);}
 .card .sub{font-size:0.84rem;color:var(--muted);margin-top:6px;font-weight:500;}
@@ -129,7 +133,7 @@ html:not(.light) .ap-banner a{color:#fbbf24;}
 // =============================================================================
 // Shared JavaScript in Flash ROM (PROGMEM)
 // =============================================================================
-static const char COMMON_JS[] PROGMEM = 
+static const char COMMON_JS[] PROGMEM =
 R"rawliteral(
 function isDarkTheme(m){
   if(m === 'dark') return true;
@@ -198,13 +202,37 @@ function togglePassword(btn){
     if(closed) closed.style.display = 'none';
   }
 }
+window.addEventListener('load', function(){
+  try{
+    var t = Math.round(performance.now());
+    var el = document.getElementById('page_load_time');
+    if(el) el.innerText = t + ' ms';
+  }catch(e){}
+});
 )rawliteral";
 
-static const char PWD_EYE_TOGGLE_HTML[] PROGMEM = 
+static const char PWD_EYE_TOGGLE_HTML[] PROGMEM =
 "<button type=\"button\" class=\"pwd-toggle\" onclick=\"togglePassword(this)\" title=\"Toggle password visibility\" tabindex=\"-1\">"
 "<svg class=\"eye-open\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>"
 "<svg class=\"eye-closed\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"display:none;\"><path d=\"M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24\"/><line x1=\"1\" y1=\"1\" x2=\"23\" y2=\"23\"/></svg>"
 "</button>";
+
+static String getRequestFormBody(WebServer &server) {
+    if (server.hasArg("plain")) return server.arg("plain");
+
+    // WebServer parses multipart FormData into named arguments instead of
+    // exposing the raw multipart body as "plain". Serialize those arguments
+    // so the shared form parser can handle both multipart and URL-encoded POSTs.
+    String body;
+    body.reserve(512);
+    for (int i = 0; i < server.args(); ++i) {
+        if (i > 0) body += '&';
+        body += encodeFormValue(server.argName(i));
+        body += '=';
+        body += encodeFormValue(server.arg(i));
+    }
+    return body;
+}
 
 // =============================================================================
 // Constructor & Initialization
@@ -262,13 +290,17 @@ bool WebPortal::isAuthenticated() {
 bool WebPortal::checkAuth() {
     if (isAuthenticated()) return true;
 
-    handleLoginPage();
+    WebServerResponseWriter res(_server);
+    renderLoginPage(res);
     return false;
 }
 
+// =============================================================================
+// WebPortal Main Setup & Loop
+// =============================================================================
 void WebPortal::begin() {
-    const char *headerKeys[] = {"Cookie", "Authorization"};
-    _server.collectHeaders(headerKeys, 2);
+    const char *headerKeys[] = {"Cookie", "Authorization", "Host"};
+    _server.collectHeaders(headerKeys, 3);
 
     _authRequired = _prefs.getBool(NVS_KEY_AUTH_EN, DEFAULT_AUTH_ENABLED);
     String u = _prefs.getString(NVS_KEY_AUTH_USER, DEFAULT_AUTH_USER);
@@ -280,45 +312,18 @@ void WebPortal::begin() {
     _isApMode = (WiFi.getMode() & WIFI_MODE_AP);
     _captiveEnabled = _prefs.getBool(NVS_KEY_AP_CAPTIVE, true);
 
-    // Setup DNS Server for Captive Portal if in AP mode
     if (_isApMode && _captiveEnabled) {
         _dnsServer.start(DNS_PORT, "*", IPAddress(AP_IP_ADDRESS));
     }
 
-    // HTML Page Routes
-    _server.on("/", HTTP_GET, [this]() { handleRoot(); });
-    _server.on("/terminal", HTTP_GET, [this]() { handleTerminal(); });
-    _server.on("/settings", HTTP_GET, [this]() { handleSettings(); });
-    _server.on("/wifi", HTTP_GET, [this]() { handleWifiPage(); });
-    _server.on("/update", HTTP_GET, [this]() { handleUpdatePage(); });
-    _server.on("/update", HTTP_POST, [this]() { handleUpdateFinish(); }, [this]() { handleUpdateUpload(); });
-    _server.on("/metrics", HTTP_GET, [this]() { handleMetrics(); });
-    _server.on("/sync_ntp", HTTP_GET, [this]() { handleSyncNtp(); });
-    _server.on("/reset_wifi", HTTP_GET, [this]() { handleResetWifi(); });
-    _server.on("/login", HTTP_GET, [this]() { handleLoginPage(); });
-    _server.on("/logout", HTTP_GET, [this]() { handleLogout(); });
+    // Register HTTP Port 80 Routes
+    registerHttpRoutes();
+    _server.begin();
+    logger.logInfo("HTTP server started on port %u", HTTP_PORT);
+}
 
-    // Favicon Routes
-    _server.on("/favicon.svg", HTTP_GET, [this]() {
-        _server.send_P(200, "image/svg+xml", OOBM_FAVICON_SVG);
-    });
-    _server.on("/favicon.ico", HTTP_GET, [this]() {
-        _server.send_P(200, "image/svg+xml", OOBM_FAVICON_SVG);
-    });
-
-    // AJAX API Routes
-    _server.on("/api/login", HTTP_POST, [this]() { handleApiLogin(); });
-    _server.on("/api/status", HTTP_GET, [this]() { handleApiStatus(); });
-    _server.on("/api/scan", HTTP_GET, [this]() { handleApiScan(); });
-    _server.on("/api/logs", HTTP_GET, [this]() { handleApiLogs(); });
-    _server.on("/api/ntp/sync", HTTP_POST, [this]() { handleSyncNtp(); });
-    _server.on("/api/settings/save", HTTP_POST, [this]() { handleApiSaveSettings(); });
-    _server.on("/api/wifi/save", HTTP_POST, [this]() { handleApiSaveWifi(); });
-    _server.on("/api/restart", HTTP_POST, [this]() { handleApiRestart(); });
-    _server.on("/api/factory_reset", HTTP_POST, [this]() { handleApiFactoryReset(); });
-    _server.on("/api/platform", HTTP_POST, [this]() { handleApiPlatform(); });
-
-    // Captive Portal Probes (Android, Apple iOS/macOS, Windows, Firefox)
+void WebPortal::registerHttpRoutes() {
+    // Captive Portal Detection Probes
     _server.on("/generate_204", HTTP_GET, [this]() { handleCaptivePortal(); });
     _server.on("/gen_204", HTTP_GET, [this]() { handleCaptivePortal(); });
     _server.on("/hotspot-detect.html", HTTP_GET, [this]() { handleCaptivePortal(); });
@@ -327,10 +332,123 @@ void WebPortal::begin() {
     _server.on("/connecttest.txt", HTTP_GET, [this]() { handleCaptivePortal(); });
     _server.on("/success.txt", HTTP_GET, [this]() { handleCaptivePortal(); });
 
-    _server.onNotFound([this]() { handleNotFound(); });
+    // HTML Page Routes on Port 80
+    _server.on("/", HTTP_GET, [this]() {
+        if (!checkAuth()) return;
+        WebServerResponseWriter res(_server);
+        renderRoot(res);
+    });
 
-    _server.begin();
-    logger.logInfo("Web server started on port %u (Auth: %s)", HTTP_PORT, _authRequired ? "Enabled" : "Disabled");
+    _server.on("/terminal", HTTP_GET, [this]() {
+        if (!checkAuth()) return;
+        WebServerResponseWriter res(_server);
+        renderTerminal(res);
+    });
+
+    _server.on("/settings", HTTP_GET, [this]() {
+        if (!checkAuth()) return;
+        WebServerResponseWriter res(_server);
+        renderSettings(res);
+    });
+
+    _server.on("/wifi", HTTP_GET, [this]() {
+        if (!checkAuth()) return;
+        WebServerResponseWriter res(_server);
+        renderWifiPage(res);
+    });
+
+    _server.on("/update", HTTP_GET, [this]() {
+        if (!checkAuth()) return;
+        WebServerResponseWriter res(_server);
+        renderUpdatePage(res);
+    });
+
+    _server.on("/metrics", HTTP_GET, [this]() {
+        WebServerResponseWriter res(_server);
+        renderMetrics(res);
+    });
+
+    _server.on("/login", HTTP_GET, [this]() {
+        WebServerResponseWriter res(_server);
+        renderLoginPage(res);
+    });
+
+    _server.on("/logout", HTTP_GET, [this]() {
+        _server.sendHeader("Set-Cookie", "oobm_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+        _server.sendHeader("Location", "/login");
+        _server.send(302, "text/plain", "Logged out");
+    });
+
+    _server.on("/favicon.svg", HTTP_GET, [this]() {
+        _server.sendHeader("Cache-Control", "public, max-age=604800");
+        _server.send_P(200, "image/svg+xml", OOBM_FAVICON_SVG);
+    });
+    _server.on("/favicon.ico", HTTP_GET, [this]() {
+        _server.sendHeader("Cache-Control", "public, max-age=604800");
+        _server.send_P(200, "image/svg+xml", OOBM_FAVICON_SVG);
+    });
+
+    // AJAX API routes on Port 80
+    _server.on("/api/login", HTTP_POST, [this]() {
+        String u = _server.hasArg("usr") ? _server.arg("usr") : (_server.hasArg("user") ? _server.arg("user") : "");
+        String p = _server.hasArg("pwd") ? _server.arg("pwd") : (_server.hasArg("pass") ? _server.arg("pass") : "");
+        if (u.length() == 0 && _server.hasArg("plain")) {
+            String body = _server.arg("plain");
+            u = extractFormArg(body, "usr");
+            if (u.length() == 0) u = extractFormArg(body, "user");
+            p = extractFormArg(body, "pwd");
+            if (p.length() == 0) p = extractFormArg(body, "pass");
+        }
+        WebServerResponseWriter res(_server);
+        handleApiLogin(res, u, p);
+    });
+    _server.on("/api/status", HTTP_GET, [this]() {
+        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
+        WebServerResponseWriter res(_server);
+        handleApiStatus(res);
+    });
+    _server.on("/api/scan", HTTP_GET, [this]() {
+        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
+        WebServerResponseWriter res(_server);
+        handleApiScan(res);
+    });
+    _server.on("/api/logs", HTTP_GET, [this]() {
+        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
+        WebServerResponseWriter res(_server);
+        handleApiLogs(res);
+    });
+    _server.on("/api/settings/save", HTTP_POST, [this]() {
+        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
+        WebServerResponseWriter res(_server);
+        handleApiSaveSettings(res, getRequestFormBody(_server));
+    });
+    _server.on("/api/wifi/save", HTTP_POST, [this]() {
+        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
+        WebServerResponseWriter res(_server);
+        handleApiSaveWifi(res, getRequestFormBody(_server));
+    });
+    _server.on("/api/restart", HTTP_POST, [this]() {
+        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
+        WebServerResponseWriter res(_server);
+        handleApiRestart(res);
+    });
+    _server.on("/api/factory_reset", HTTP_POST, [this]() {
+        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
+        WebServerResponseWriter res(_server);
+        handleApiFactoryReset(res);
+    });
+    _server.on("/api/platform", HTTP_POST, [this]() {
+        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
+        WebServerResponseWriter res(_server);
+        handleApiPlatform(res, _server.arg("p"));
+    });
+    _server.on("/api/ntp/sync", HTTP_POST, [this]() {
+        if (!isAuthenticated()) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
+        triggerNtpSync();
+        _server.send(200, "application/json", "{\"success\":true}");
+    });
+
+    _server.onNotFound([this]() { handleNotFound(); });
 }
 
 void WebPortal::loop() {
@@ -343,109 +461,127 @@ void WebPortal::loop() {
 // =============================================================================
 // HTML Helpers (PROGMEM Streaming)
 // =============================================================================
-void WebPortal::streamHeader(const char *activeTab, const char *title) {
-    _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-    _server.send(200, "text/html; charset=utf-8", "");
+void WebPortal::streamHeader(ResponseWriter &res, const char *activeTab, const char *title) {
+    res.setContentType("text/html; charset=utf-8");
 
     time_t nowT = time(nullptr);
+    char timeBuf[32];
+    char clockTime[10] = "--:--:--";
     bool is24h = _prefs.getBool(NVS_KEY_TIME_FORMAT_24H, true);
-    char curTimeBuf[32];
     if (nowT > 1577836800) {
         struct tm ti;
         localtime_r(&nowT, &ti);
+        strftime(clockTime, sizeof(clockTime), "%H:%M:%S", &ti);
         if (is24h) {
-            strftime(curTimeBuf, sizeof(curTimeBuf), "%Y-%m-%d %H:%M", &ti);
+            strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", &ti);
         } else {
-            strftime(curTimeBuf, sizeof(curTimeBuf), "%Y-%m-%d %I:%M %p", &ti);
+            strftime(timeBuf, sizeof(timeBuf), "%I:%M:%S %p", &ti);
         }
     } else {
-        snprintf(curTimeBuf, sizeof(curTimeBuf), "--:--");
+        snprintf(timeBuf, sizeof(timeBuf), "--:--:--");
     }
 
-    _server.sendContent_P(PSTR("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\">"
-                               "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"
-                               "<title>"));
-    _server.sendContent(title);
-    _server.sendContent_P(PSTR(" - ESP-OOBM</title>"
-                               "<link rel=\"icon\" type=\"image/svg+xml\" href=\"/favicon.svg\">"
-                               "<link rel=\"icon\" type=\"image/x-icon\" href=\"/favicon.ico\">"
-                               "<style>"));
-    _server.sendContent_P(COMMON_CSS);
-    _server.sendContent_P(PSTR("</style><script>"));
-    _server.sendContent_P(COMMON_JS);
-    _server.sendContent_P(PSTR("</script></head><body><div class=\"header-wrap\"><div class=\"top-accent\"></div>"
-                               "<div class=\"navbar\"><div class=\"nav-inner\"><a href=\"/\" class=\"brand\">"));
-    _server.sendContent_P(OOBM_LOGO_SVG);
-    _server.sendContent_P(PSTR("</a><nav class=\"nav-links\">"
-                               "<a href=\"/\" class=\"nav-link "));
-    if (strcmp(activeTab, "dashboard") == 0) _server.sendContent_P(PSTR("active"));
-    _server.sendContent_P(PSTR("\">Dashboard</a>"
-                               "<a href=\"/terminal\" class=\"nav-link "));
-    if (strcmp(activeTab, "terminal") == 0) _server.sendContent_P(PSTR("active"));
-    _server.sendContent_P(PSTR("\">Terminal</a>"
-                               "<a href=\"/settings\" class=\"nav-link "));
-    if (strcmp(activeTab, "settings") == 0) _server.sendContent_P(PSTR("active"));
-    _server.sendContent_P(PSTR("\">Settings</a></nav>"
-                               "<div class=\"nav-actions\"><div id=\"clock_badge\" class=\"badge-clock\">"));
-    _server.sendContent(curTimeBuf);
-    _server.sendContent_P(PSTR("</div>"
-                               "<div class=\"theme-switch\" role=\"group\" aria-label=\"Theme switcher\">"
-                               "  <button id=\"themeBtnLight\" class=\"theme-btn\" onclick=\"setTheme('light')\" title=\"Light Theme\">"
-                               "    <svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41\"/></svg>"
-                               "  </button>"
-                               "  <button id=\"themeBtnDark\" class=\"theme-btn\" onclick=\"setTheme('dark')\" title=\"Dark Theme\">"
-                               "    <svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z\"/></svg>"
-                               "  </button>"
-                               "  <button id=\"themeBtnSystem\" class=\"theme-btn\" onclick=\"setTheme('system')\" title=\"System Theme\">"
-                               "    <svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"3\" width=\"20\" height=\"14\" rx=\"2\"/><line x1=\"8\" y1=\"21\" x2=\"16\" y2=\"21\"/><line x1=\"12\" y1=\"17\" x2=\"12\" y2=\"21\"/></svg>"
-                               "  </button>"));
+    String hostname = getDeviceHostname(_prefs);
+
+    res.sendChunk_P(PSTR("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\">"
+                         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"
+                         "<title>"));
+    res.sendChunk(title);
+    res.sendChunk_P(PSTR(" - ESP-OOBM</title>"
+                         "<link rel=\"icon\" type=\"image/svg+xml\" href=\"/favicon.svg\">"
+                         "<link rel=\"icon\" type=\"image/x-icon\" href=\"/favicon.ico\">"
+                         "<style>"));
+    res.sendChunk_P(COMMON_CSS);
+    res.sendChunk_P(PSTR("</style><script>"));
+    res.sendChunk_P(COMMON_JS);
+    res.sendChunk_P(PSTR("</script></head><body>"
+                         "<div class=\"header-wrap\">"
+                         "<div class=\"top-accent\"></div>"
+                         "<nav class=\"navbar\"><div class=\"nav-inner\">"
+                         "<a href=\"/\" class=\"brand\">"));
+    res.sendChunk_P(OOBM_LOGO_SVG);
+    res.sendChunk_P(PSTR("</a><div class=\"nav-links\">"));
+
+    auto renderNavLink = [&](const char *tabId, const char *url, const char *label) {
+        bool isActive = (strcmp(activeTab, tabId) == 0);
+        res.sendChunk("<a href=\"");
+        res.sendChunk(url);
+        res.sendChunk("\" class=\"nav-link");
+        if (isActive) res.sendChunk(" active");
+        res.sendChunk("\">");
+        res.sendChunk(label);
+        res.sendChunk("</a>");
+    };
+
+    renderNavLink("dashboard", "/", "Dashboard");
+    renderNavLink("terminal", "/terminal", "Terminal");
+    renderNavLink("settings", "/settings", "Settings");
+
+    res.sendChunk_P(PSTR("</div><div class=\"nav-actions\">"
+                         "<div class=\"badge-clock\">"
+                         "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg>"
+                         "<span id=\"header_clock\" data-time=\""));
+    res.sendChunk(clockTime);
+    res.sendChunk_P(PSTR("\" data-24h=\""));
+    res.sendChunk(is24h ? "1" : "0");
+    res.sendChunk_P(PSTR("\">"));
+    res.sendChunk(timeBuf);
+    res.sendChunk_P(PSTR("</span></div>"
+                         "<div class=\"theme-switch\">"
+                         "<button id=\"themeBtnLight\" class=\"theme-btn\" onclick=\"setTheme('light')\" title=\"Light Theme\">"
+                         "<svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41\"/></svg>"
+                         "</button>"
+                         "<button id=\"themeBtnDark\" class=\"theme-btn\" onclick=\"setTheme('dark')\" title=\"Dark Theme\">"
+                         "<svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z\"/></svg>"
+                         "</button>"
+                         "<button id=\"themeBtnSystem\" class=\"theme-btn\" onclick=\"setTheme('system')\" title=\"Follow System Theme\">"
+                         "<svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"3\" width=\"20\" height=\"14\" rx=\"2\"/><line x1=\"8\" y1=\"21\" x2=\"16\" y2=\"21\"/><line x1=\"12\" y1=\"17\" x2=\"12\" y2=\"21\"/></svg>"
+                         "</button>"
+                         "</div>"));
+
     if (_authRequired) {
-        _server.sendContent_P(PSTR(
-            "  <a href=\"/logout\" class=\"theme-btn\" title=\"Sign Out\" style=\"margin-left:4px;text-decoration:none;\">"
-            "    <svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4\"/><polyline points=\"16 17 21 12 16 7\"/><line x1=\"21\" y1=\"12\" x2=\"9\" y2=\"12\"/></svg>"
-            "  </a>"
-        ));
+        res.sendChunk_P(PSTR("<a href=\"/logout\" class=\"btn btn-outline btn-sm\" style=\"margin-left:4px;\" title=\"Sign Out\">"
+                             "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4\"/><polyline points=\"16 17 21 12 16 7\"/><line x1=\"21\" y1=\"12\" x2=\"9\" y2=\"12\"/></svg>"
+                             "</a>"));
     }
-    _server.sendContent_P(PSTR("</div></div></div></div></div><div class=\"container\">"));
 
-    if (WiFi.status() != WL_CONNECTED) {
-        _server.sendContent_P(PSTR(
-            "<div class=\"ap-banner\">"
-            "  <span>&#9888; <b>Standalone AP Mode (192.168.4.1)</b> &bull; Wi-Fi not configured or offline</span>"
-            "  <a href=\"/wifi\">Configure Wi-Fi &rarr;</a>"
-            "</div>"
-        ));
+    res.sendChunk_P(PSTR("</div></div></nav></div><div class=\"container\">"));
+
+    if (WiFi.getMode() == WIFI_MODE_AP && !WiFi.isConnected()) {
+        res.sendChunk_P(PSTR("<div class=\"ap-banner\">"
+                             "<span>&#9888; <b>Device is currently in Standalone Access Point mode.</b> Connect to your local network to enable station management.</span>"
+                             "<a href=\"/wifi\" class=\"btn btn-sm btn-outline\">Configure Wi-Fi &rarr;</a>"
+                             "</div>"));
     }
 }
 
-void WebPortal::streamFooter() {
-    _server.sendContent_P(PSTR(
-        "<footer style=\"margin-top:40px;padding:20px 0;border-top:1px solid var(--border);text-align:center;font-size:0.80rem;color:var(--muted);\">"
-        "  ESP-OOBM Firmware <b>v" FIRMWARE_VERSION "</b> &bull; Built on " FIRMWARE_BUILD_DATE " " FIRMWARE_BUILD_TIME
-        "</footer>"
-        "</div><script>"
-        "function pollStatus(){"
-        "  fetch('/api/status').then(r=>r.json()).then(d=>{"
-        "    if(d.time_str){"
-        "      var cb = document.getElementById('clock_badge');"
-        "      if(cb) cb.innerText = d.time_str;"
-        "    }"
-        "    if(typeof updateDashboardUI === 'function') updateDashboardUI(d);"
-        "  }).catch(()=>{});"
-        "}"
-        "setInterval(pollStatus, 2500);"
-        "</script></body></html>"
-    ));
-    _server.sendContent("");
+void WebPortal::streamFooter(ResponseWriter &res) {
+    res.sendChunk_P(PSTR("</div><script>(function(){"
+                         "var el=document.getElementById('header_clock');"
+                         "if(!el)return;"
+                         "var value=el.getAttribute('data-time')||'';"
+                         "if(!/^\\d{2}:\\d{2}:\\d{2}$/.test(value))return;"
+                         "var p=value.split(':'),h=Number(p[0]),m=Number(p[1]),s=Number(p[2]);"
+                         "var is24=el.getAttribute('data-24h')==='1';"
+                         "function pad(n){return n<10?'0'+n:String(n);}"
+                         "setInterval(function(){s++;if(s>=60){s=0;m++;if(m>=60){m=0;h=(h+1)%24;}}"
+                         "var displayHour=h,suffix='';"
+                         "if(!is24){suffix=h>=12?' PM':' AM';displayHour=h%12||12;}"
+                         "el.textContent=pad(displayHour)+':'+pad(m)+':'+pad(s)+suffix;},1000);"
+                         "})();</script>"
+                         "<footer style=\"text-align:center;padding:24px 0 32px 0;font-size:0.80rem;color:var(--muted);border-top:1px solid var(--border);margin-top:40px;\">"
+                         "Firmware v" FIRMWARE_VERSION
+                         " &bull; Built " FIRMWARE_BUILD_DATE " " FIRMWARE_BUILD_TIME
+                         " &bull; <span style=\"color:var(--green);font-weight:600;\">&#9889; Load: <span id=\"page_load_time\">-- ms</span></span>"
+                         "</footer></body></html>"));
+    res.end();
 }
 
 // =============================================================================
-// Dashboard Page
+// Dashboard Page (/)
 // =============================================================================
-void WebPortal::handleRoot() {
-    if (!checkAuth()) return;
-
-    streamHeader("dashboard", "Dashboard");
+void WebPortal::renderRoot(ResponseWriter &res) {
+    streamHeader(res, "dashboard", "Dashboard");
 
     SystemStatsData stats;
     SystemStats::update(stats);
@@ -459,15 +595,15 @@ void WebPortal::handleRoot() {
 
     bool is24h = _prefs.getBool(NVS_KEY_TIME_FORMAT_24H, true);
     if (stats.currentTime > 1577836800) {
-        struct tm timeinfo;
-        localtime_r(&stats.currentTime, &timeinfo);
+        struct tm ti;
+        localtime_r(&stats.currentTime, &ti);
         if (is24h) {
-            strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M", &timeinfo);
+            strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M", &ti);
         } else {
-            strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %I:%M %p", &timeinfo);
+            strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %I:%M %p", &ti);
         }
     } else {
-        snprintf(timeBuf, sizeof(timeBuf), "--:--");
+        snprintf(timeBuf, sizeof(timeBuf), "Unsynchronized (RTC uncalibrated)");
     }
 
     if (g_lastNtpSyncTimestamp > 0) {
@@ -482,78 +618,92 @@ void WebPortal::handleRoot() {
         snprintf(lastNtpBuf, sizeof(lastNtpBuf), "Never / Just booted");
     }
 
+    String tzCity = _prefs.getString(NVS_KEY_NTP_TZ_CITY, DEFAULT_TZ_CITY);
+    String ntpServer = _prefs.getString(NVS_KEY_NTP_SERVER, NTP_DEFAULT_SERVER);
+
     char framing[8];
-    snprintf(framing, sizeof(framing), "%u%c%u", 
+    snprintf(framing, sizeof(framing), "%u%c%u",
              serialBridge.getDataBits(),
              (serialBridge.getParity() == 1 ? 'O' : (serialBridge.getParity() == 2 ? 'E' : 'N')),
              serialBridge.getStopBits());
 
-    String netMode = stats.wifiStaConnected ? "STATION" : (stats.wifiApActive ? "ACCESS POINT" : "DISCONNECTED");
-    String tzCity = _prefs.getString(NVS_KEY_NTP_TZ_CITY, DEFAULT_TZ_CITY);
-    String ntpServer = _prefs.getString(NVS_KEY_NTP_SERVER, NTP_DEFAULT_SERVER);
+    String netMode = stats.wifiStaConnected ? "Station" : (stats.wifiApActive ? "Access Point" : "Disconnected");
 
-    String dHtml = "";
-    dHtml.reserve(4000);
-    dHtml += "<div class=\"grid-cards\">\n";
-    // 1. System Health
-    dHtml += "  <div class=\"card\">\n";
-    dHtml += "    <h3>System Health <span id=\"cpu_badge\" style=\"font-size:0.75rem;color:var(--navy);\">" + String(stats.cpuFreqMhz) + " MHz</span></h3>\n";
-    dHtml += "    <div class=\"val val-accent\" id=\"uptime_val\">" + String(uptimeBuf) + "</div>\n";
-    dHtml += "    <div class=\"sub\">Uptime</div>\n";
-    dHtml += "    <div style=\"margin-top:14px;\">\n";
-    dHtml += "      <div class=\"stat-row\"><span class=\"stat-label\">Free Heap</span><span class=\"stat-val\" id=\"heap_val\">" + String(heapBuf) + "</span></div>\n";
-    dHtml += "      <div class=\"stat-row\"><span class=\"stat-label\">Min Free Heap</span><span class=\"stat-val\" id=\"min_heap_val\">" + String(minHeapBuf) + "</span></div>\n";
-    dHtml += "      <div class=\"stat-row\"><span class=\"stat-label\">Heap Fragmentation</span><span class=\"stat-val\" id=\"frag_val\">" + String(stats.heapFragPercent) + "%</span></div>\n";
-    dHtml += "    </div>\n";
-    dHtml += "  </div>\n";
+    res.sendChunk_P(PSTR("<div class=\"grid-cards\">\n"));
+
+    // 1. Health
+    String card1 = "";
+    card1.reserve(600);
+    card1 += "  <div class=\"card\">\n";
+    card1 += "    <h3>System Health <span id=\"cpu_badge\" style=\"font-size:0.75rem;color:var(--navy);\">" + String(stats.cpuFreqMhz) + " MHz</span></h3>\n";
+    card1 += "    <div class=\"val val-accent\" id=\"uptime_val\">" + String(uptimeBuf) + "</div>\n";
+    card1 += "    <div class=\"sub\">Uptime</div>\n";
+    card1 += "    <div style=\"margin-top:14px;\">\n";
+    card1 += "      <div class=\"stat-row\"><span class=\"stat-label\">Free RAM</span><span class=\"stat-val\"><span id=\"heap_val\">" + String(heapBuf) + "</span> <span id=\"frag_val\" style=\"color:var(--muted);font-size:0.80rem;\">(" + String(stats.heapFragPercent) + "% frag)</span></span></div>\n";
+    card1 += "      <div class=\"stat-row\"><span class=\"stat-label\">Min Free Heap</span><span class=\"stat-val\" id=\"min_heap_val\">" + String(minHeapBuf) + "</span></div>\n";
+    card1 += "      <div class=\"stat-row\"><span class=\"stat-label\">CPU Load / Temp</span><span class=\"stat-val\"><span id=\"cpu_load_val\">" + String(stats.cpuLoadPercent, 1) + "%</span> <span id=\"temp_val\" style=\"color:var(--muted);font-size:0.80rem;\">(" + String(stats.temperatureCelsius, 1) + " &deg;C)</span></span></div>\n";
+    card1 += "    </div>\n";
+    card1 += "  </div>\n";
+    res.sendChunk(card1);
 
     // 2. Serial Interface
-    dHtml += "  <div class=\"card\">\n";
-    dHtml += "    <h3>Serial Interface <span id=\"baud_badge\" style=\"font-size:0.75rem;color:var(--green);\">" + String(stats.baudRate) + " " + String(framing) + "</span></h3>\n";
-    dHtml += "    <div class=\"val val-green\" id=\"rx_bytes_val\">" + String(rxBuf) + "</div>\n";
-    dHtml += "    <div class=\"sub\">RX Bytes Received</div>\n";
-    dHtml += "    <div style=\"margin-top:14px;\">\n";
-    dHtml += "      <div class=\"stat-row\"><span class=\"stat-label\">TX Bytes Sent</span><span class=\"stat-val\" id=\"tx_bytes_val\">" + String(txBuf) + "</span></div>\n";
-    dHtml += "      <div class=\"stat-row\"><span class=\"stat-label\">RX Overflows</span><span class=\"stat-val\" id=\"overflow_val\">" + String(stats.serialRxOverflow) + "</span></div>\n";
-    dHtml += "      <div class=\"stat-row\"><span class=\"stat-label\">Active Sessions</span><span class=\"stat-val\" id=\"sessions_val\">WS: " + String(stats.activeWsClients) + " | Telnet: " + String(stats.activeTelnetClients) + "</span></div>\n";
-    dHtml += "    </div>\n";
-    dHtml += "  </div>\n";
+    String card2 = "";
+    card2.reserve(600);
+    card2 += "  <div class=\"card\">\n";
+    card2 += "    <h3>Serial Interface <span id=\"baud_badge\" style=\"font-size:0.75rem;color:var(--green);\">" + String(stats.baudRate) + " " + String(framing) + "</span></h3>\n";
+    card2 += "    <div class=\"val val-green\" id=\"rx_bytes_val\">" + String(rxBuf) + "</div>\n";
+    card2 += "    <div class=\"sub\">RX Bytes Received</div>\n";
+    card2 += "    <div style=\"margin-top:14px;\">\n";
+    card2 += "      <div class=\"stat-row\"><span class=\"stat-label\">TX Bytes Sent</span><span class=\"stat-val\" id=\"tx_bytes_val\">" + String(txBuf) + "</span></div>\n";
+    card2 += "      <div class=\"stat-row\"><span class=\"stat-label\">RX Overflows</span><span class=\"stat-val\" id=\"overflow_val\">" + String(stats.serialRxOverflow) + "</span></div>\n";
+    card2 += "      <div class=\"stat-row\"><span class=\"stat-label\">Sessions</span><span class=\"stat-val\" id=\"sessions_val\">WS: " + String(stats.activeWsClients) + " | Telnet: " + String(stats.activeTelnetClients) + "</span></div>\n";
+    card2 += "    </div>\n";
+    card2 += "  </div>\n";
+    res.sendChunk(card2);
 
     // 3. Network & WiFi
-    dHtml += "  <div class=\"card\">\n";
-    dHtml += "    <h3>Network & WiFi <span id=\"net_mode_badge\" style=\"font-size:0.75rem;color:var(--cyan);\">" + netMode + "</span></h3>\n";
-    dHtml += "    <div class=\"val\" id=\"ip_val\">" + String(stats.ipAddress) + "</div>\n";
-    dHtml += "    <div class=\"sub\" id=\"ssid_val\">SSID: " + (stats.ssid[0] ? String(stats.ssid) : "(None)") + "</div>\n";
-    dHtml += "    <div style=\"margin-top:14px;\">\n";
-    dHtml += "      <div class=\"stat-row\"><span class=\"stat-label\">MAC Address</span><span class=\"stat-val\" id=\"mac_val\">" + String(stats.macAddress) + "</span></div>\n";
-    dHtml += "      <div class=\"stat-row\"><span class=\"stat-label\">Signal RSSI</span><span class=\"stat-val\" id=\"rssi_val\">" + (stats.wifiStaConnected ? (String(stats.wifiRssi) + " dBm") : "N/A") + "</span></div>\n";
-    dHtml += "      <div class=\"stat-row\"><span class=\"stat-label\">Connected AP Clients</span><span class=\"stat-val\" id=\"ap_clients_val\">" + String(stats.wifiApClients) + "</span></div>\n";
-    dHtml += "    </div>\n";
-    dHtml += "  </div>\n";
+    String card3 = "";
+    card3.reserve(600);
+    card3 += "  <div class=\"card\">\n";
+    card3 += "    <h3>Network & WiFi <span id=\"net_mode_badge\" style=\"font-size:0.75rem;color:var(--cyan);\">" + netMode + "</span></h3>\n";
+    card3 += "    <div class=\"val\" id=\"ip_val\">" + String(stats.ipAddress) + "</div>\n";
+    card3 += "    <div class=\"sub\" id=\"ssid_val\">SSID: " + (stats.ssid[0] ? String(stats.ssid) : "(None)") + "</div>\n";
+    card3 += "    <div style=\"margin-top:14px;\">\n";
+    card3 += "      <div class=\"stat-row\"><span class=\"stat-label\">MAC Address</span><span class=\"stat-val\" id=\"mac_val\">" + String(stats.macAddress) + "</span></div>\n";
+    card3 += "      <div class=\"stat-row\"><span class=\"stat-label\">Signal RSSI</span><span class=\"stat-val\" id=\"rssi_val\">" + (stats.wifiStaConnected ? (String(stats.wifiRssi) + " dBm") : "N/A") + "</span></div>\n";
+    card3 += "      <div class=\"stat-row\"><span class=\"stat-label\">Connected AP Clients</span><span class=\"stat-val\" id=\"ap_clients_val\">" + String(stats.wifiApClients) + "</span></div>\n";
+    card3 += "    </div>\n";
+    card3 += "  </div>\n";
+    res.sendChunk(card3);
 
     // 4. Time & Clock
-    dHtml += "  <div class=\"card\">\n";
-    dHtml += "    <h3>Time &amp; Clock</h3>\n";
-    dHtml += "    <div class=\"val\" id=\"time_val\" style=\"font-size:1.6rem;letter-spacing:-0.02em;\">" + String(timeBuf) + "</div>\n";
-    dHtml += "    <div class=\"sub\" id=\"tz_val\">TZ: " + tzCity + "</div>\n";
-    dHtml += "    <div style=\"margin-top:14px;\">\n";
-    dHtml += "      <div class=\"stat-row\"><span class=\"stat-label\">NTP Status</span><span class=\"stat-val\"><span id=\"ntp_badge\" class=\"badge " + String(stats.ntpSynced ? "badge-ok\">Synced (OK)" : "badge-warn\">Waiting for sync") + "</span></span></div>\n";
-    dHtml += "      <div class=\"stat-row\"><span class=\"stat-label\">NTP Server</span><span class=\"stat-val\" id=\"ntp_srv_val\">" + ntpServer + "</span></div>\n";
-    dHtml += "      <div class=\"stat-row\"><span class=\"stat-label\">Last NTP Sync</span><span class=\"stat-val\" id=\"last_ntp_val\">" + String(lastNtpBuf) + "</span></div>\n";
-    dHtml += "    </div>\n";
-    dHtml += "  </div>\n";
-    dHtml += "</div>\n";
+    String card4 = "";
+    card4.reserve(600);
+    card4 += "  <div class=\"card\">\n";
+    card4 += "    <h3>Time &amp; Clock</h3>\n";
+    card4 += "    <div class=\"val\" id=\"time_val\" style=\"font-size:1.45rem;letter-spacing:-0.01em;\">" + String(timeBuf) + "</div>\n";
+    card4 += "    <div class=\"sub\" id=\"tz_val\">TZ: " + tzCity + "</div>\n";
+    card4 += "    <div style=\"margin-top:14px;\">\n";
+    card4 += "      <div class=\"stat-row\"><span class=\"stat-label\">NTP Status</span><span class=\"stat-val\"><span id=\"ntp_badge\" class=\"badge " + String(stats.ntpSynced ? "badge-ok\">Synced (OK)" : "badge-warn\">Waiting for sync") + "</span></span></div>\n";
+    card4 += "      <div class=\"stat-row\"><span class=\"stat-label\">NTP Server</span><span class=\"stat-val\" id=\"ntp_srv_val\">" + ntpServer + "</span></div>\n";
+    card4 += "      <div class=\"stat-row\"><span class=\"stat-label\">Last NTP Sync</span><span class=\"stat-val\" id=\"last_ntp_val\">" + String(lastNtpBuf) + "</span></div>\n";
+    card4 += "    </div>\n";
+    card4 += "  </div>\n";
+    card4 += "</div>\n";
+    res.sendChunk(card4);
 
     // 5. System Event Log Card
-    dHtml += "<div class=\"table-card\" style=\"margin-top:20px;\">\n";
-    dHtml += "  <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;\">\n";
-    dHtml += "    <h3 style=\"margin:0;color:var(--navy);\">&#128220; System Event Log</h3>\n";
-    dHtml += "    <button type=\"button\" class=\"btn btn-outline btn-sm\" onclick=\"fetchLogs()\">&#128260; Refresh Log</button>\n";
-    dHtml += "  </div>\n";
-    dHtml += "  <div id=\"log_box\" class=\"log-box\">";
+    res.sendChunk_P(PSTR(
+        "<div class=\"table-card\" style=\"margin-top:20px;\">\n"
+        "  <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;\">\n"
+        "    <h3 style=\"margin:0;color:var(--navy);\">&#128220; System Event Log</h3>\n"
+        "    <button type=\"button\" class=\"btn btn-outline btn-sm\" onclick=\"fetchLogs()\">&#128260; Refresh Log</button>\n"
+        "  </div>\n"
+        "  <div id=\"log_box\" class=\"log-box\">"
+    ));
     size_t lCount = logger.getCount();
     if (lCount == 0) {
-        dHtml += "<span style=\"color:var(--muted);\">No log entries recorded yet.</span>";
+        res.sendChunk_P(PSTR("<span style=\"color:var(--muted);\">No log entries recorded yet.</span>"));
     } else {
         for (size_t i = 0; i < lCount; i++) {
             const LogEntry &e = logger.getEntry(i);
@@ -568,528 +718,592 @@ void WebPortal::handleRoot() {
             }
             const char *cls = (e.level == LOG_LVL_ERROR) ? "log-error" : ((e.level == LOG_LVL_WARN) ? "log-warn" : "log-info");
             const char *prefix = (e.level == LOG_LVL_ERROR) ? "[ERROR]" : ((e.level == LOG_LVL_WARN) ? "[WARN]" : "[INFO]");
-            dHtml += "<span style=\"color:var(--muted);\">" + String(lTimeBuf) + "</span> <span class=\"" + String(cls) + "\">" + String(prefix) + "</span> " + String(e.msg) + "\n";
+            String line = "<span style=\"color:var(--muted);\">" + String(lTimeBuf) + "</span> <span class=\"" + String(cls) + "\">" + String(prefix) + "</span> " + String(e.msg) + "\n";
+            res.sendChunk(line);
         }
     }
-    dHtml += "</div>\n";
-    dHtml += "</div>\n";
+    res.sendChunk_P(PSTR("</div>\n</div>\n"));
 
-    dHtml += "<script>\n";
-    dHtml += "function fetchLogs(){\n";
-    dHtml += "  fetch('/api/logs').then(r=>r.json()).then(entries=>{\n";
-    dHtml += "    var box = document.getElementById('log_box');\n";
-    dHtml += "    if(!box) return;\n";
-    dHtml += "    if(!entries || entries.length === 0){ box.innerHTML = '<span style=\"color:var(--muted);\">No log entries recorded yet.</span>'; return; }\n";
-    dHtml += "    var html = '';\n";
-    dHtml += "    entries.forEach(function(e){\n";
-    dHtml += "      var cls = e.lvl === 2 ? 'log-error' : (e.lvl === 1 ? 'log-warn' : 'log-info');\n";
-    dHtml += "      var prefix = e.lvl === 2 ? '[ERROR]' : (e.lvl === 1 ? '[WARN]' : '[INFO]');\n";
-    dHtml += "      html += '<span style=\"color:var(--muted);\">' + e.time + '</span> ' +\n";
-    dHtml += "              '<span class=\"' + cls + '\">' + prefix + '</span> ' +\n";
-    dHtml += "              e.msg + '\\n';\n";
-    dHtml += "    });\n";
-    dHtml += "    box.innerHTML = html;\n";
-    dHtml += "    box.scrollTop = box.scrollHeight;\n";
-    dHtml += "  }).catch(()=>{});\n";
-    dHtml += "}\n";
-    dHtml += "(function(){ var b = document.getElementById('log_box'); if(b) b.scrollTop = b.scrollHeight; })();\n";
-    dHtml += "function updateDashboardUI(d){\n";
-    dHtml += "  document.getElementById('uptime_val').innerText = d.uptime_str || '--';\n";
-    dHtml += "  document.getElementById('cpu_badge').innerText = d.cpu_freq + ' MHz';\n";
-    dHtml += "  document.getElementById('heap_val').innerText = d.free_heap_str || (Math.round(d.free_heap/1024) + ' KB');\n";
-    dHtml += "  document.getElementById('min_heap_val').innerText = d.min_heap_str || (Math.round(d.min_free_heap/1024) + ' KB');\n";
-    dHtml += "  document.getElementById('frag_val').innerText = d.heap_frag + '%';\n";
-    dHtml += "  document.getElementById('baud_badge').innerText = d.baud + ' ' + d.framing;\n";
-    dHtml += "  document.getElementById('rx_bytes_val').innerText = d.rx_bytes_str || (d.rx_bytes + ' B');\n";
-    dHtml += "  document.getElementById('tx_bytes_val').innerText = d.tx_bytes_str || (d.tx_bytes + ' B');\n";
-    dHtml += "  document.getElementById('sessions_val').innerText = 'WS: ' + d.active_ws + ' | Telnet: ' + d.active_telnet;\n";
-    dHtml += "  document.getElementById('net_mode_badge').innerText = d.net_mode;\n";
-    dHtml += "  document.getElementById('ip_val').innerText = d.ip;\n";
-    dHtml += "  document.getElementById('ssid_val').innerText = 'SSID: ' + (d.ssid || '(None)');\n";
-    dHtml += "  document.getElementById('mac_val').innerText = d.mac;\n";
-    dHtml += "  document.getElementById('rssi_val').innerText = d.rssi ? (d.rssi + ' dBm') : 'N/A';\n";
-    dHtml += "  document.getElementById('ap_clients_val').innerText = d.ap_clients || 0;\n";
-    dHtml += "  document.getElementById('ntp_badge').innerText = d.ntp_synced ? 'Synced (OK)' : 'Waiting for sync';\n";
-    dHtml += "  document.getElementById('ntp_badge').className = d.ntp_synced ? 'badge badge-ok' : 'badge badge-warn';\n";
-    dHtml += "  document.getElementById('tz_val').innerText = 'TZ: ' + (d.tz_city || 'UTC');\n";
-    dHtml += "  document.getElementById('ntp_srv_val').innerText = d.ntp_server || 'pool.ntp.org';\n";
-    dHtml += "  document.getElementById('last_ntp_val').innerText = d.last_ntp_str || '--';\n";
-    dHtml += "}\n";
-    dHtml += "</script>\n";
+    res.sendChunk_P(PSTR(
+        "<script>\n"
+        "function fetchLogs(){\n"
+        "  fetch('/api/logs').then(r=>r.json()).then(entries=>{\n"
+        "    var box = document.getElementById('log_box');\n"
+        "    if(!box) return;\n"
+        "    if(!entries || entries.length === 0){ box.innerHTML = '<span style=\"color:var(--muted);\">No log entries recorded yet.</span>'; return; }\n"
+        "    var html = '';\n"
+        "    entries.forEach(function(e){\n"
+        "      var cls = e.lvl === 2 ? 'log-error' : (e.lvl === 1 ? 'log-warn' : 'log-info');\n"
+        "      var prefix = e.lvl === 2 ? '[ERROR]' : (e.lvl === 1 ? '[WARN]' : '[INFO]');\n"
+        "      html += '<span style=\"color:var(--muted);\">' + e.time + '</span> ' +\n"
+        "              '<span class=\"' + cls + '\">' + prefix + '</span> ' +\n"
+        "              e.msg + '\\n';\n"
+        "    });\n"
+        "    box.innerHTML = html;\n"
+        "    box.scrollTop = box.scrollHeight;\n"
+        "  }).catch(()=>{});\n"
+        "}\n"
+        "(function(){ var b = document.getElementById('log_box'); if(b) b.scrollTop = b.scrollHeight; })();\n"
+        "function updateDashboardUI(d){\n"
+        "  document.getElementById('uptime_val').innerText = d.uptime_str || '--';\n"
+        "  document.getElementById('cpu_badge').innerText = d.cpu_freq + ' MHz';\n"
+        "  document.getElementById('heap_val').innerText = d.free_heap_str || (Math.round(d.free_heap/1024) + ' KB');\n"
+        "  if(document.getElementById('frag_val')) document.getElementById('frag_val').innerText = '(' + (d.heap_frag || 0) + '% frag)';\n"
+        "  document.getElementById('min_heap_val').innerText = d.min_heap_str || (Math.round(d.min_free_heap/1024) + ' KB');\n"
+        "  if(document.getElementById('cpu_load_val')) document.getElementById('cpu_load_val').innerText = (d.cpu_load !== undefined ? d.cpu_load.toFixed(1) : '0.0') + '%';\n"
+        "  if(document.getElementById('temp_val')) document.getElementById('temp_val').innerText = '(' + (d.temp_c !== undefined ? d.temp_c.toFixed(1) : '--') + ' °C)';\n"
+        "  document.getElementById('baud_badge').innerText = d.baud + ' ' + d.framing;\n"
+        "  document.getElementById('rx_bytes_val').innerText = d.rx_bytes_str || (d.rx_bytes + ' B');\n"
+        "  document.getElementById('tx_bytes_val').innerText = d.tx_bytes_str || (d.tx_bytes + ' B');\n"
+        "  document.getElementById('sessions_val').innerText = 'WS: ' + d.active_ws + ' | Telnet: ' + d.active_telnet;\n"
+        "  document.getElementById('net_mode_badge').innerText = d.net_mode;\n"
+        "  document.getElementById('ip_val').innerText = d.ip;\n"
+        "  document.getElementById('ssid_val').innerText = 'SSID: ' + (d.ssid || '(None)');\n"
+        "  document.getElementById('mac_val').innerText = d.mac;\n"
+        "  document.getElementById('rssi_val').innerText = d.rssi ? (d.rssi + ' dBm') : 'N/A';\n"
+        "  document.getElementById('ap_clients_val').innerText = d.ap_clients || 0;\n"
+        "  document.getElementById('ntp_badge').innerText = d.ntp_synced ? 'Synced (OK)' : 'Waiting for sync';\n"
+        "  document.getElementById('ntp_badge').className = d.ntp_synced ? 'badge badge-ok' : 'badge badge-warn';\n"
+        "  document.getElementById('time_val').innerText = d.time_str || '--:--';\n"
+        "  document.getElementById('tz_val').innerText = 'TZ: ' + (d.tz_city || 'UTC');\n"
+        "  document.getElementById('ntp_srv_val').innerText = d.ntp_server || 'pool.ntp.org';\n"
+        "  document.getElementById('last_ntp_val').innerText = d.last_ntp_str || '--';\n"
+        "}\n"
+        "var statusPollTimer = null;\n"
+        "var statusPollInFlight = false;\n"
+        "function pollDashboardStatus(){\n"
+        "  if(document.hidden || statusPollInFlight) return;\n"
+        "  statusPollInFlight = true;\n"
+        "  fetch('/api/status').then(r=>r.json()).then(updateDashboardUI).catch(()=>{}).then(function(){\n"
+        "    statusPollInFlight = false;\n"
+        "    if(!document.hidden) statusPollTimer = setTimeout(pollDashboardStatus, " WEBPORTAL_STRINGIFY(DASHBOARD_AJAX_REFRESH_MS) ");\n"
+        "  });\n"
+        "}\n"
+        "document.addEventListener('visibilitychange', function(){\n"
+        "  if(statusPollTimer){ clearTimeout(statusPollTimer); statusPollTimer = null; }\n"
+        "  if(!document.hidden) pollDashboardStatus();\n"
+        "});\n"
+        "pollDashboardStatus();\n"
+        "</script>\n"
+    ));
+#undef WEBPORTAL_STRINGIFY
+#undef WEBPORTAL_STRINGIFY_IMPL
 
-    _server.sendContent(dHtml);
-    streamFooter();
+    streamFooter(res);
 }
 
 // =============================================================================
-// Terminal Page
+// Terminal Page (/terminal)
 // =============================================================================
-void WebPortal::handleTerminal() {
-    if (!checkAuth()) return;
-
-    streamHeader("terminal", "Serial Console");
+void WebPortal::renderTerminal(ResponseWriter &res) {
+    streamHeader(res, "terminal", "Serial Console");
 
     String curPlatform = _prefs.getString(NVS_KEY_CLI_PLATFORM, "mikrotik");
 
-    String t = "";
-    t.reserve(16000);
+    // Top Controls Bar & Responsive Terminal Screen
+    res.sendChunk_P(PSTR(
+        "<div style=\"display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;\">\n"
+        "  <div style=\"font-size:0.88rem;font-weight:600;display:flex;align-items:center;gap:8px;white-space:nowrap;\">\n"
+        "    <span id=\"ws_status_dot\" style=\"display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--warn);\"></span>\n"
+        "    <span id=\"ws_status_text\">Connecting...</span>\n"
+        "  </div>\n"
+        "  <div style=\"display:flex;align-items:center;gap:4px;flex-wrap:wrap;\" onmousedown=\"if(event.target.closest('.term-key'))event.preventDefault();\">\n"
+        "    <span style=\"font-size:0.75rem;font-weight:700;color:var(--muted);margin-right:2px;\">KEYS:</span>\n"
+        "    <button class=\"term-key\" onclick=\"sendSpecialKey(27)\">ESC</button>\n"
+        "    <button class=\"term-key\" onclick=\"sendSpecialKey(9)\">TAB</button>\n"
+        "    <button class=\"term-key\" onclick=\"sendSpecialKey(3)\">Ctrl+C</button>\n"
+        "    <button class=\"term-key\" onclick=\"sendSpecialKey(26)\">Ctrl+Z</button>\n"
+        "    <button class=\"term-key\" onclick=\"sendSpecialKey(4)\">Ctrl+D</button>\n"
+        "    <button class=\"term-key\" onclick=\"sendEscapeSeq('[A')\">&uarr;</button>\n"
+        "    <button class=\"term-key\" onclick=\"sendEscapeSeq('[B')\">&darr;</button>\n"
+        "    <button class=\"term-key\" onclick=\"sendEscapeSeq('[D')\">&larr;</button>\n"
+        "    <button class=\"term-key\" onclick=\"sendEscapeSeq('[C')\">&rarr;</button>\n"
+        "    <button class=\"term-key\" onclick=\"sendSpecialKey(8)\">&#9003; BKSP</button>\n"
+        "    <button class=\"term-key\" onclick=\"sendSpecialKey(13)\">ENTER</button>\n"
+        "  </div>\n"
+        "  <div style=\"display:flex;gap:6px;\">\n"
+        "    <button class=\"btn btn-outline btn-sm\" onclick=\"clearTerminal()\">Clear</button>\n"
+        "    <button class=\"btn btn-outline btn-sm\" onclick=\"reconnectWs()\">Reconnect</button>\n"
+        "  </div>\n"
+        "</div>\n"
+        "<div id=\"terminal\" class=\"term-container\" tabindex=\"0\"></div>\n"
+        "<textarea id=\"term_input\" autocomplete=\"off\" autocorrect=\"off\" autocapitalize=\"none\" spellcheck=\"false\" aria-label=\"Terminal input\" style=\"position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:0;border:0;padding:0;resize:none;font-size:16px;\"> </textarea>\n"
+        "<div class=\"table-card\" style=\"margin-top:10px;padding:8px 14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;\">\n"
+        "  <div style=\"display:flex;align-items:center;gap:6px;\">\n"
+        "    <span style=\"font-size:0.80rem;font-weight:700;color:var(--muted);white-space:nowrap;\">PLATFORM:</span>\n"
+        "    <select id=\"platform_select\" class=\"form-control\" style=\"padding:4px 8px;font-size:0.82rem;font-weight:600;width:auto;\" onchange=\"changePlatform(this.value)\">\n"
+    ));
 
-    // Top Controls Bar (Status left, Keys middle, Clear/Reconnect right)
-    t += "<div style=\"display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;\">\n";
-    t += "  <div style=\"font-size:0.88rem;font-weight:600;display:flex;align-items:center;gap:8px;white-space:nowrap;\">\n";
-    t += "    <span id=\"ws_status_dot\" style=\"display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--warn);\"></span>\n";
-    t += "    <span id=\"ws_status_text\">Connecting...</span>\n";
-    t += "  </div>\n";
-    t += "  <div style=\"display:flex;align-items:center;gap:4px;flex-wrap:wrap;\">\n";
-    t += "    <span style=\"font-size:0.75rem;font-weight:700;color:var(--muted);margin-right:2px;\">KEYS:</span>\n";
-    t += "    <button class=\"term-key\" onclick=\"sendSpecialKey(27)\">ESC</button>\n";
-    t += "    <button class=\"term-key\" onclick=\"sendSpecialKey(9)\">TAB</button>\n";
-    t += "    <button class=\"term-key\" onclick=\"sendSpecialKey(3)\">Ctrl+C</button>\n";
-    t += "    <button class=\"term-key\" onclick=\"sendSpecialKey(26)\">Ctrl+Z</button>\n";
-    t += "    <button class=\"term-key\" onclick=\"sendSpecialKey(4)\">Ctrl+D</button>\n";
-    t += "    <button class=\"term-key\" onclick=\"sendEscapeSeq('[A')\">&uarr;</button>\n";
-    t += "    <button class=\"term-key\" onclick=\"sendEscapeSeq('[B')\">&darr;</button>\n";
-    t += "    <button class=\"term-key\" onclick=\"sendEscapeSeq('[D')\">&larr;</button>\n";
-    t += "    <button class=\"term-key\" onclick=\"sendEscapeSeq('[C')\">&rarr;</button>\n";
-    t += "    <button class=\"term-key\" onclick=\"sendSpecialKey(13)\">ENTER</button>\n";
-    t += "  </div>\n";
-    t += "  <div style=\"display:flex;gap:6px;\">\n";
-    t += "    <button class=\"btn btn-outline btn-sm\" onclick=\"clearTerminal()\">Clear</button>\n";
-    t += "    <button class=\"btn btn-outline btn-sm\" onclick=\"reconnectWs()\">Reconnect</button>\n";
-    t += "  </div>\n";
-    t += "</div>\n";
+    res.sendChunk(String("      <option value=\"mikrotik\"") + (curPlatform == "mikrotik" ? " selected" : "") + ">MikroTik RouterOS</option>\n");
+    res.sendChunk(String("      <option value=\"linux\"") + (curPlatform == "linux" ? " selected" : "") + ">Linux / OpenWrt / EdgeOS</option>\n");
+    res.sendChunk(String("      <option value=\"cisco\"") + (curPlatform == "cisco" ? " selected" : "") + ">Cisco IOS / Catalyst</option>\n");
+    res.sendChunk(String("      <option value=\"pfsense\"") + (curPlatform == "pfsense" ? " selected" : "") + ">pfSense / FreeBSD / OPNsense</option>\n");
+    res.sendChunk(String("      <option value=\"generic\"") + (curPlatform == "generic" ? " selected" : "") + ">Generic Diagnostics</option>\n");
 
-    // Responsive Terminal Screen
-    t += "<div id=\"terminal\" class=\"term-container\" tabindex=\"0\"></div>\n";
+    res.sendChunk_P(PSTR(
+        "    </select>\n"
+        "  </div>\n"
+        "  <div style=\"display:flex;align-items:center;gap:6px;flex-wrap:wrap;\">\n"
+        "    <span style=\"font-size:0.80rem;font-weight:700;color:var(--muted);margin-right:2px;\">QUICK COMMANDS:</span>\n"
+        "    <div id=\"quick_cmds\" style=\"display:inline-flex;gap:6px;flex-wrap:wrap;\"></div>\n"
+        "  </div>\n"
+        "</div>\n"
+        "<script>\n"
+        "var ANSI_COLORS=['#0f172a','#ef4444','#10b981','#f59e0b','#3b82f6','#a855f7','#06b6d4','#cbd5e1',"
+        "'#64748b','#f87171','#34d399','#fbbf24','#60a5fa','#c084fc','#22d3ee','#ffffff'];\n"
+        "function getAnsiColor(code){\n"
+        "  if(code>=0&&code<16) return ANSI_COLORS[code];\n"
+        "  if(code>=232&&code<=255){\n"
+        "    var v=Math.round((code-232)*10+8);\n"
+        "    var h=v.toString(16).padStart(2,'0');\n"
+        "    return '#'+h+h+h;\n"
+        "  }\n"
+        "  if(code>=16&&code<=231){\n"
+        "    var n=code-16,b=n%6,g=Math.floor(n/6)%6,r=Math.floor(n/36);\n"
+        "    var steps=[0,95,135,175,215,255];\n"
+        "    return 'rgb('+steps[r]+','+steps[g]+','+steps[b]+')';\n"
+        "  }\n"
+        "  return null;\n"
+        "}\n"
+        "function AnsiTerminal(el,maxLines){\n"
+        "  this.el=el;\n"
+        "  this.maxLines=maxLines||1500;\n"
+        "  this.lines=[[]];\n"
+        "  this.cursorRow=0;\n"
+        "  this.cursorCol=0;\n"
+        "  this.fg=null; this.bg=null; this.bold=false; this.underline=false; this.inverse=false;\n"
+        "  this.state=0;\n"
+        "  this.csiParamStr='';\n"
+        "  this.renderTimer=null;\n"
+        "}\n"
+        "AnsiTerminal.prototype.reset=function(){\n"
+        "  this.lines=[[]]; this.cursorRow=0; this.cursorCol=0;\n"
+        "  this.fg=null; this.bg=null; this.bold=false; this.underline=false; this.inverse=false;\n"
+        "  this.state=0; this.csiParamStr='';\n"
+        "  this.render();\n"
+        "};\n"
+        "AnsiTerminal.prototype.write=function(str){\n"
+        "  for(var i=0;i<str.length;i++){\n"
+        "    var ch=str.charAt(i),code=str.charCodeAt(i);\n"
+        "    if(this.state===0){\n"
+        "      if(code===27){ this.state=1; }\n"
+        "      else if(code===13){ this.cursorCol=0; }\n"
+        "      else if(code===10){\n"
+        "        this.cursorRow++;\n"
+        "        if(this.cursorRow>=this.lines.length){\n"
+        "          this.lines.push([]);\n"
+        "        }\n"
+        "        if(this.lines.length>this.maxLines){\n"
+        "          this.lines.shift();\n"
+        "          this.cursorRow=Math.max(0,this.lines.length-1);\n"
+        "        }\n"
+        "      }\n"
+        "      else if(code===8||code===127){ if(this.cursorCol>0) this.cursorCol--; }\n"
+        "      else if(code===9){\n"
+        "        var nextTab=(Math.floor(this.cursorCol/8)+1)*8;\n"
+        "        while(this.cursorCol<nextTab){ this.putChar(' '); }\n"
+        "      }\n"
+        "      else if(code>=32){ this.putChar(ch); }\n"
+        "    }else if(this.state===1){\n"
+        "      if(ch==='['){ this.state=2; this.csiParamStr=''; }\n"
+        "      else if(ch===']'){ this.state=3; }\n"
+        "      else if(ch==='('||ch===')'){ this.state=4; }\n"
+        "      else if(ch==='c'){ this.reset(); this.state=0; }\n"
+        "      else if(ch==='7'){ this.savedRow=this.cursorRow; this.savedCol=this.cursorCol; this.state=0; }\n"
+        "      else if(ch==='8'){ if(this.savedRow!==undefined) this.cursorRow=this.savedRow; if(this.savedCol!==undefined) this.cursorCol=this.savedCol; this.state=0; }\n"
+        "      else { this.state=0; }\n"
+        "    }else if(this.state===4){\n"
+        "      this.state=0;\n"
+        "    }else if(this.state===3){\n"
+        "      if(code===7){ this.state=0; }\n"
+        "      else if(code===27){ this.state=1; }\n"
+        "    }else if(this.state===2){\n"
+        "      if((this.csiParamStr===''||this.csiParamStr==='?')&&(ch==='?'||ch==='>'||ch==='=')){ this.csiParamStr+=ch; }\n"
+        "      else if((code>=48&&code<=57)||ch===';'||ch==='?'){ this.csiParamStr+=ch; }\n"
+        "      else { this.handleCsi(ch); this.state=0; }\n"
+        "    }\n"
+        "  }\n"
+        "  this.scheduleRender();\n"
+        "};\n"
+        "AnsiTerminal.prototype.putChar=function(ch){\n"
+        "  while(this.lines.length<=this.cursorRow){ this.lines.push([]); }\n"
+        "  var line=this.lines[this.cursorRow];\n"
+        "  while(line.length<this.cursorCol){\n"
+        "    line.push({ch:' ',fg:null,bg:null,bold:false,underline:false,inverse:false});\n"
+        "  }\n"
+        "  line[this.cursorCol]={ch:ch,fg:this.fg,bg:this.bg,bold:this.bold,underline:this.underline,inverse:this.inverse};\n"
+        "  this.cursorCol++;\n"
+        "};\n"
+        "AnsiTerminal.prototype.handleCsi=function(cmd){\n"
+        "  var cleanStr=this.csiParamStr.replace(/^[\\?\\>\\=]+/,'');\n"
+        "  var raw=cleanStr?cleanStr.split(';'):[];\n"
+        "  var p=raw.map(function(x){ return parseInt(x,10); });\n"
+        "  if(cmd==='m'){\n"
+        "    if(p.length===0) p=[0];\n"
+        "    for(var i=0;i<p.length;i++){\n"
+        "      var v=isNaN(p[i])?0:p[i];\n"
+        "      if(v===0){ this.fg=null; this.bg=null; this.bold=false; this.underline=false; this.inverse=false; }\n"
+        "      else if(v===1){ this.bold=true; }\n"
+        "      else if(v===4){ this.underline=true; }\n"
+        "      else if(v===7){ this.inverse=true; }\n"
+        "      else if(v===22){ this.bold=false; }\n"
+        "      else if(v===24){ this.underline=false; }\n"
+        "      else if(v===27){ this.inverse=false; }\n"
+        "      else if(v>=30&&v<=37){ this.fg=getAnsiColor(v-30 + (this.bold?8:0)); }\n"
+        "      else if(v===39){ this.fg=null; }\n"
+        "      else if(v>=40&&v<=47){ this.bg=getAnsiColor(v-40); }\n"
+        "      else if(v===49){ this.bg=null; }\n"
+        "      else if(v>=90&&v<=97){ this.fg=getAnsiColor(v-90+8); }\n"
+        "      else if(v>=100&&v<=107){ this.bg=getAnsiColor(v-100+8); }\n"
+        "      else if(v===38&&p[i+1]===5){ this.fg=getAnsiColor(p[i+2]); i+=2; }\n"
+        "      else if(v===48&&p[i+1]===5){ this.bg=getAnsiColor(p[i+2]); i+=2; }\n"
+        "      else if(v===38&&p[i+1]===2){ this.fg='rgb('+p[i+2]+','+p[i+3]+','+p[i+4]+')'; i+=4; }\n"
+        "      else if(v===48&&p[i+1]===2){ this.bg='rgb('+p[i+2]+','+p[i+3]+','+p[i+4]+')'; i+=4; }\n"
+        "    }\n"
+        "  }else if(cmd==='K'){\n"
+        "    var m=p[0]||0;\n"
+        "    while(this.lines.length<=this.cursorRow) this.lines.push([]);\n"
+        "    var line=this.lines[this.cursorRow];\n"
+        "    if(m===0){\n"
+        "      if(line.length>this.cursorCol) line.length=this.cursorCol;\n"
+        "    }else if(m===1){\n"
+        "      for(var c=0;c<=Math.min(this.cursorCol,line.length-1);c++){\n"
+        "        line[c]={ch:' ',fg:null,bg:null,bold:false,underline:false,inverse:false};\n"
+        "      }\n"
+        "    }else if(m===2){\n"
+        "      this.lines[this.cursorRow]=[];\n"
+        "      this.cursorCol=0;\n"
+        "    }\n"
+        "  }else if(cmd==='J'){\n"
+        "    var m=p[0]||0;\n"
+        "    if(m===2||m===3){\n"
+        "      this.lines=[[]];\n"
+        "      this.cursorRow=0;\n"
+        "      this.cursorCol=0;\n"
+        "    }else if(m===0){\n"
+        "      while(this.lines.length<=this.cursorRow) this.lines.push([]);\n"
+        "      var cur=this.lines[this.cursorRow];\n"
+        "      if(cur&&cur.length>this.cursorCol) cur.length=this.cursorCol;\n"
+        "    }\n"
+        "  }else if(cmd==='A'){\n"
+        "    this.cursorRow=Math.max(0,this.cursorRow-(p[0]||1));\n"
+        "  }else if(cmd==='B'){\n"
+        "    this.cursorRow=Math.min(this.lines.length-1,this.cursorRow+(p[0]||1));\n"
+        "  }else if(cmd==='C'){\n"
+        "    this.cursorCol+=(p[0]||1);\n"
+        "  }else if(cmd==='D'){\n"
+        "    this.cursorCol=Math.max(0,this.cursorCol-(p[0]||1));\n"
+        "  }else if(cmd==='G'||cmd==='`'){\n"
+        "    this.cursorCol=Math.max(0,(p[0]||1)-1);\n"
+        "  }else if(cmd==='H'||cmd==='f'){\n"
+        "    var r=(p[0]!==undefined&&!isNaN(p[0]))?p[0]:1;\n"
+        "    var c=(p[1]!==undefined&&!isNaN(p[1]))?p[1]:1;\n"
+        "    this.cursorRow=Math.max(0,r-1);\n"
+        "    while(this.lines.length<=this.cursorRow) this.lines.push([]);\n"
+        "    this.cursorCol=Math.max(0,c-1);\n"
+        "  }else if(cmd==='c'){\n"
+        "    if(ws&&ws.readyState===1){\n"
+        "      if(this.csiParamStr.indexOf('>')>=0){\n"
+        "        ws.send(new TextEncoder().encode('\\x1b[>0;10;0c'));\n"
+        "      }else{\n"
+        "        ws.send(new TextEncoder().encode('\\x1b[?1;2c'));\n"
+        "      }\n"
+        "    }\n"
+        "  }else if(cmd==='n'){\n"
+        "    var q=p[0]||0;\n"
+        "    if(ws&&ws.readyState===1){\n"
+        "      if(q===6){\n"
+        "        var r=this.cursorRow+1, c=this.cursorCol+1;\n"
+        "        ws.send(new TextEncoder().encode('\\x1b[' + r + ';' + c + 'R'));\n"
+        "      }else if(q===5){\n"
+        "        ws.send(new TextEncoder().encode('\\x1b[0n'));\n"
+        "      }\n"
+        "    }\n"
+        "  }else if(cmd==='t'){\n"
+        "    var q=p[0]||0;\n"
+        "    if(ws&&ws.readyState===1){\n"
+        "      if(q===18){\n"
+        "        ws.send(new TextEncoder().encode('\\x1b[8;24;80t'));\n"
+        "      }\n"
+        "    }\n"
+        "  }\n"
+        "};\n"
+        "AnsiTerminal.prototype.scheduleRender=function(){\n"
+        "  if(this.renderTimer) return;\n"
+        "  var self=this;\n"
+        "  this.renderTimer=requestAnimationFrame(function(){ self.renderTimer=null; self.render(); });\n"
+        "};\n"
+        "AnsiTerminal.prototype.render=function(){\n"
+        "  var html='';\n"
+        "  for(var r=0;r<this.lines.length;r++){\n"
+        "    var line=this.lines[r], isCur=(r===this.cursorRow);\n"
+        "    if(!line||line.length===0){\n"
+        "      html+=isCur?'<span class=\"term-cursor\">&nbsp;</span>\\n':'\\n';\n"
+        "      continue;\n"
+        "    }\n"
+        "    var curStyle=null, spanBuf='', maxCol=Math.max(line.length,isCur?(this.cursorCol+1):line.length);\n"
+        "    for(var c=0;c<maxCol;c++){\n"
+        "      if(isCur&&c===this.cursorCol){\n"
+        "        if(spanBuf){ html+=this.wrapSpan(spanBuf,curStyle); spanBuf=''; curStyle=null; }\n"
+        "        var curChar=(line[c]&&line[c].ch)?line[c].ch:'&nbsp;';\n"
+        "        html+='<span class=\"term-cursor\">'+(curChar===' '?'&nbsp;':this.escapeChar(curChar))+'</span>';\n"
+        "        continue;\n"
+        "      }\n"
+        "      var cell=line[c]||{ch:' ',fg:null,bg:null,bold:false,underline:false,inverse:false};\n"
+        "      var ch=cell.ch||' ';\n"
+        "      var fg=cell.fg, bg=cell.bg;\n"
+        "      if(cell.inverse){ var tmp=fg||'#cbd5e1'; fg=bg||'#000000'; bg=tmp; }\n"
+        "      var sk=(fg||'')+'|'+(bg||'')+'|'+(cell.bold?'1':'0')+'|'+(cell.underline?'1':'0');\n"
+        "      if(curStyle!==sk){\n"
+        "        if(spanBuf){ html+=this.wrapSpan(spanBuf,curStyle); spanBuf=''; }\n"
+        "        curStyle=sk;\n"
+        "      }\n"
+        "      spanBuf+=this.escapeChar(ch);\n"
+        "    }\n"
+        "    if(spanBuf) html+=this.wrapSpan(spanBuf,curStyle);\n"
+        "    if(isCur&&this.cursorCol>=maxCol) html+='<span class=\"term-cursor\">&nbsp;</span>';\n"
+        "    html+='\\n';\n"
+        "  }\n"
+        "  this.el.innerHTML=html;\n"
+        "  this.el.scrollTop=this.el.scrollHeight;\n"
+        "};\n"
+        "AnsiTerminal.prototype.escapeChar=function(c){\n"
+        "  if(c==='&') return '&amp;'; if(c==='<') return '&lt;'; if(c==='>') return '&gt;'; if(c==='\"') return '&quot;'; return c;\n"
+        "};\n"
+        "AnsiTerminal.prototype.wrapSpan=function(text,sk){\n"
+        "  if(!sk) return text;\n"
+        "  var p=sk.split('|'), fg=p[0], bg=p[1], bold=p[2]==='1', und=p[3]==='1';\n"
+        "  if(!fg&&!bg&&!bold&&!und) return text;\n"
+        "  var s='';\n"
+        "  if(fg) s+='color:'+fg+';';\n"
+        "  if(bg) s+='background-color:'+bg+';';\n"
+        "  if(bold) s+='font-weight:700;';\n"
+        "  if(und) s+='text-decoration:underline;';\n"
+        "  return '<span style=\"'+s+'\">'+text+'</span>';\n"
+        "};\n\n"
+        "var ws, termEl=document.getElementById('terminal'), dot=document.getElementById('ws_status_dot'), stext=document.getElementById('ws_status_text');\n"
+        "var emulator = new AnsiTerminal(termEl, 1200);\n\n"
+        "try{\n"
+        "  var savedRaw = sessionStorage.getItem('oobm_term_raw') || '';\n"
+        "  if(savedRaw.length > 0) emulator.write(savedRaw);\n"
+        "}catch(e){}\n\n"
+        "var PLATFORM_CMDS = {\n"
+        "  mikrotik: [\n"
+        "    { label: '/system resource print', cmd: '/system resource print' },\n"
+        "    { label: '/ip address print', cmd: '/ip address print' },\n"
+        "    { label: '/interface print', cmd: '/interface print' },\n"
+        "    { label: '/log print', cmd: '/log print follow-only' },\n"
+        "    { label: '/ip route print', cmd: '/ip route print' }\n"
+        "  ],\n"
+        "  linux: [\n"
+        "    { label: 'ip addr show', cmd: 'ip addr show' },\n"
+        "    { label: 'dmesg | tail -n 20', cmd: 'dmesg -T | tail -n 20' },\n"
+        "    { label: 'logread -f', cmd: 'logread -f' },\n"
+        "    { label: 'systemctl status', cmd: 'systemctl status' },\n"
+        "    { label: 'df -h', cmd: 'df -h' }\n"
+        "  ],\n"
+        "  cisco: [\n"
+        "    { label: 'show ip int brief', cmd: 'show ip interface brief' },\n"
+        "    { label: 'show running-config', cmd: 'show running-config' },\n"
+        "    { label: 'show int status', cmd: 'show interfaces status' },\n"
+        "    { label: 'show logging', cmd: 'show logging' },\n"
+        "    { label: 'term len 0', cmd: 'terminal length 0' }\n"
+        "  ],\n"
+        "  pfsense: [\n"
+        "    { label: 'ifconfig', cmd: 'ifconfig' },\n"
+        "    { label: 'pfctl -d (Disable FW)', cmd: 'pfctl -d' },\n"
+        "    { label: 'pfctl -e (Enable FW)', cmd: 'pfctl -e' },\n"
+        "    { label: 'top -b', cmd: 'top -b' },\n"
+        "    { label: 'netstat -rn', cmd: 'netstat -rn' }\n"
+        "  ],\n"
+        "  generic: [\n"
+        "    { label: 'help', cmd: 'help' },\n"
+        "    { label: 'status', cmd: 'status' },\n"
+        "    { label: 'version', cmd: 'version' },\n"
+        "    { label: 'ping 8.8.8.8', cmd: 'ping 8.8.8.8' },\n"
+        "    { label: 'reboot', cmd: 'reboot' }\n"
+        "  ]\n"
+        "};\n"
+        "function renderQuickCmds(p){\n"
+        "  var list = PLATFORM_CMDS[p] || PLATFORM_CMDS.mikrotik;\n"
+        "  var c = document.getElementById('quick_cmds');\n"
+        "  if(!c) return;\n"
+        "  c.innerHTML = '';\n"
+        "  list.forEach(function(item){\n"
+        "    var btn = document.createElement('button');\n"
+        "    btn.className = 'btn btn-outline btn-sm';\n"
+        "    btn.innerText = item.label;\n"
+        "    btn.onclick = function(){ sendCmd(item.cmd); };\n"
+        "    c.appendChild(btn);\n"
+        "  });\n"
+        "}\n"
+        "function changePlatform(p){\n"
+        "  renderQuickCmds(p);\n"
+        "  try{ localStorage.setItem('oobm_cli_platform', p); }catch(e){}\n"
+        "  fetch('/api/platform?p=' + encodeURIComponent(p), { method: 'POST' }).catch(()=>{});\n"
+        "}\n"
+        "var wsRetryTimer = null;\n"
+        "function initWs(){\n"
+        "  if(wsRetryTimer){ clearTimeout(wsRetryTimer); wsRetryTimer = null; }\n"
+        "  var wsUrl = 'ws://' + location.hostname + ':81';\n"
+        "  try{ if(ws) ws.close(); }catch(e){}\n"
+        "  ws = new WebSocket(wsUrl);\n"
+        "  ws.binaryType = 'arraybuffer';\n"
+        "  ws.onopen = function(){\n"
+        "    if(wsRetryTimer){ clearTimeout(wsRetryTimer); wsRetryTimer = null; }\n"
+        "    dot.style.background = 'var(--green)';\n"
+        "    stext.innerText = 'Connected (WS / Port 81)';\n"
+    ));
 
-    // Bottom Bar: Platform Dropdown & Dynamic Quick Commands
-    t += "<div class=\"table-card\" style=\"margin-top:10px;padding:8px 14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;\">\n";
-    t += "  <div style=\"display:flex;align-items:center;gap:6px;\">\n";
-    t += "    <span style=\"font-size:0.80rem;font-weight:700;color:var(--muted);white-space:nowrap;\">PLATFORM:</span>\n";
-    t += "    <select id=\"platform_select\" class=\"form-control\" style=\"padding:4px 8px;font-size:0.82rem;font-weight:600;width:auto;\" onchange=\"changePlatform(this.value)\">\n";
-    t += "      <option value=\"mikrotik\"" + String(curPlatform == "mikrotik" ? " selected" : "") + ">MikroTik RouterOS</option>\n";
-    t += "      <option value=\"linux\"" + String(curPlatform == "linux" ? " selected" : "") + ">Linux / OpenWrt / EdgeOS</option>\n";
-    t += "      <option value=\"cisco\"" + String(curPlatform == "cisco" ? " selected" : "") + ">Cisco IOS / Catalyst</option>\n";
-    t += "      <option value=\"pfsense\"" + String(curPlatform == "pfsense" ? " selected" : "") + ">pfSense / FreeBSD / OPNsense</option>\n";
-    t += "      <option value=\"generic\"" + String(curPlatform == "generic" ? " selected" : "") + ">Generic Diagnostics</option>\n";
-    t += "    </select>\n";
-    t += "  </div>\n";
-    t += "  <div style=\"display:flex;align-items:center;gap:6px;flex-wrap:wrap;\">\n";
-    t += "    <span style=\"font-size:0.80rem;font-weight:700;color:var(--muted);margin-right:2px;\">QUICK COMMANDS:</span>\n";
-    t += "    <div id=\"quick_cmds\" style=\"display:inline-flex;gap:6px;flex-wrap:wrap;\"></div>\n";
-    t += "  </div>\n";
-    t += "</div>\n";
-
-    // Terminal JavaScript & ANSI Emulator Engine
-    t += "<script>\n";
-    t += "var ANSI_COLORS=['#0f172a','#ef4444','#10b981','#f59e0b','#3b82f6','#a855f7','#06b6d4','#cbd5e1',"
-         "'#64748b','#f87171','#34d399','#fbbf24','#60a5fa','#c084fc','#22d3ee','#ffffff'];\n";
-    t += "function getAnsiColor(code){\n";
-    t += "  if(code>=0&&code<16) return ANSI_COLORS[code];\n";
-    t += "  if(code>=232&&code<=255){\n";
-    t += "    var v=Math.round((code-232)*10+8);\n";
-    t += "    var h=v.toString(16).padStart(2,'0');\n";
-    t += "    return '#'+h+h+h;\n";
-    t += "  }\n";
-    t += "  if(code>=16&&code<=231){\n";
-    t += "    var n=code-16,b=n%6,g=Math.floor(n/6)%6,r=Math.floor(n/36);\n";
-    t += "    var steps=[0,95,135,175,215,255];\n";
-    t += "    return 'rgb('+steps[r]+','+steps[g]+','+steps[b]+')';\n";
-    t += "  }\n";
-    t += "  return null;\n";
-    t += "}\n";
-    t += "function AnsiTerminal(el,maxLines){\n";
-    t += "  this.el=el;\n";
-    t += "  this.maxLines=maxLines||1500;\n";
-    t += "  this.lines=[[]];\n";
-    t += "  this.cursorRow=0;\n";
-    t += "  this.cursorCol=0;\n";
-    t += "  this.fg=null; this.bg=null; this.bold=false; this.underline=false; this.inverse=false;\n";
-    t += "  this.state=0;\n";
-    t += "  this.csiParamStr='';\n";
-    t += "  this.renderTimer=null;\n";
-    t += "}\n";
-    t += "AnsiTerminal.prototype.reset=function(){\n";
-    t += "  this.lines=[[]]; this.cursorRow=0; this.cursorCol=0;\n";
-    t += "  this.fg=null; this.bg=null; this.bold=false; this.underline=false; this.inverse=false;\n";
-    t += "  this.state=0; this.csiParamStr='';\n";
-    t += "  this.render();\n";
-    t += "};\n";
-    t += "AnsiTerminal.prototype.write=function(str){\n";
-    t += "  for(var i=0;i<str.length;i++){\n";
-    t += "    var ch=str.charAt(i),code=str.charCodeAt(i);\n";
-    t += "    if(this.state===0){\n";
-    t += "      if(code===27){ this.state=1; }\n";
-    t += "      else if(code===13){ this.cursorCol=0; }\n";
-    t += "      else if(code===10){\n";
-    t += "        this.cursorRow=this.lines.length-1;\n";
-    t += "        this.lines.push([]);\n";
-    t += "        this.cursorRow=this.lines.length-1;\n";
-    t += "        this.cursorCol=0;\n";
-    t += "        if(this.lines.length>this.maxLines){\n";
-    t += "          this.lines.shift();\n";
-    t += "          this.cursorRow=Math.max(0,this.lines.length-1);\n";
-    t += "        }\n";
-    t += "      }\n";
-    t += "      else if(code===8||code===127){ if(this.cursorCol>0) this.cursorCol--; }\n";
-    t += "      else if(code===9){\n";
-    t += "        var nextTab=(Math.floor(this.cursorCol/8)+1)*8;\n";
-    t += "        while(this.cursorCol<nextTab){ this.putChar(' '); }\n";
-    t += "      }\n";
-    t += "      else if(code>=32){ this.putChar(ch); }\n";
-    t += "    }else if(this.state===1){\n";
-    t += "      if(ch==='['){ this.state=2; this.csiParamStr=''; }\n";
-    t += "      else if(ch===']'){ this.state=3; }\n";
-    t += "      else if(ch==='('||ch===')'){ this.state=4; }\n";
-    t += "      else if(ch==='c'){ this.reset(); this.state=0; }\n";
-    t += "      else if(ch==='7'){ this.savedRow=this.cursorRow; this.savedCol=this.cursorCol; this.state=0; }\n";
-    t += "      else if(ch==='8'){ if(this.savedRow!==undefined) this.cursorRow=this.savedRow; if(this.savedCol!==undefined) this.cursorCol=this.savedCol; this.state=0; }\n";
-    t += "      else { this.state=0; }\n";
-    t += "    }else if(this.state===4){\n";
-    t += "      this.state=0;\n";
-    t += "    }else if(this.state===3){\n";
-    t += "      if(code===7){ this.state=0; }\n";
-    t += "      else if(code===27){ this.state=1; }\n";
-    t += "    }else if(this.state===2){\n";
-    t += "      if((this.csiParamStr===''||this.csiParamStr==='?')&&(ch==='?'||ch==='>'||ch==='=')){ this.csiParamStr+=ch; }\n";
-    t += "      else if((code>=48&&code<=57)||ch===';'||ch==='?'){ this.csiParamStr+=ch; }\n";
-    t += "      else { this.handleCsi(ch); this.state=0; }\n";
-    t += "    }\n";
-    t += "  }\n";
-    t += "  this.scheduleRender();\n";
-    t += "};\n";
-    t += "AnsiTerminal.prototype.putChar=function(ch){\n";
-    t += "  while(this.lines.length<=this.cursorRow){ this.lines.push([]); }\n";
-    t += "  var line=this.lines[this.cursorRow];\n";
-    t += "  while(line.length<this.cursorCol){\n";
-    t += "    line.push({ch:' ',fg:null,bg:null,bold:false,underline:false,inverse:false});\n";
-    t += "  }\n";
-    t += "  line[this.cursorCol]={ch:ch,fg:this.fg,bg:this.bg,bold:this.bold,underline:this.underline,inverse:this.inverse};\n";
-    t += "  this.cursorCol++;\n";
-    t += "};\n";
-    t += "AnsiTerminal.prototype.handleCsi=function(cmd){\n";
-    t += "  var cleanStr=this.csiParamStr.replace(/^[\\?\\>\\=]+/,'');\n";
-    t += "  var raw=cleanStr?cleanStr.split(';'):[];\n";
-    t += "  var p=raw.map(function(x){ return parseInt(x,10); });\n";
-    t += "  if(cmd==='m'){\n";
-    t += "    if(p.length===0) p=[0];\n";
-    t += "    for(var i=0;i<p.length;i++){\n";
-    t += "      var v=isNaN(p[i])?0:p[i];\n";
-    t += "      if(v===0){ this.fg=null; this.bg=null; this.bold=false; this.underline=false; this.inverse=false; }\n";
-    t += "      else if(v===1){ this.bold=true; }\n";
-    t += "      else if(v===4){ this.underline=true; }\n";
-    t += "      else if(v===7){ this.inverse=true; }\n";
-    t += "      else if(v===22){ this.bold=false; }\n";
-    t += "      else if(v===24){ this.underline=false; }\n";
-    t += "      else if(v===27){ this.inverse=false; }\n";
-    t += "      else if(v>=30&&v<=37){ this.fg=getAnsiColor(v-30); }\n";
-    t += "      else if(v===39){ this.fg=null; }\n";
-    t += "      else if(v>=40&&v<=47){ this.bg=getAnsiColor(v-40); }\n";
-    t += "      else if(v===49){ this.bg=null; }\n";
-    t += "      else if(v>=90&&v<=97){ this.fg=getAnsiColor(v-90+8); }\n";
-    t += "      else if(v>=100&&v<=107){ this.bg=getAnsiColor(v-100+8); }\n";
-    t += "      else if(v===38&&p[i+1]===5){ this.fg=getAnsiColor(p[i+2]); i+=2; }\n";
-    t += "      else if(v===48&&p[i+1]===5){ this.bg=getAnsiColor(p[i+2]); i+=2; }\n";
-    t += "      else if(v===38&&p[i+1]===2){ this.fg='rgb('+p[i+2]+','+p[i+3]+','+p[i+4]+')'; i+=4; }\n";
-    t += "      else if(v===48&&p[i+1]===2){ this.bg='rgb('+p[i+2]+','+p[i+3]+','+p[i+4]+')'; i+=4; }\n";
-    t += "    }\n";
-    t += "  }else if(cmd==='K'){\n";
-    t += "    var m=p[0]||0;\n";
-    t += "    while(this.lines.length<=this.cursorRow) this.lines.push([]);\n";
-    t += "    var line=this.lines[this.cursorRow];\n";
-    t += "    if(m===0){\n";
-    t += "      if(line.length>this.cursorCol) line.length=this.cursorCol;\n";
-    t += "    }else if(m===1){\n";
-    t += "      for(var c=0;c<=Math.min(this.cursorCol,line.length-1);c++){\n";
-    t += "        line[c]={ch:' ',fg:null,bg:null,bold:false,underline:false,inverse:false};\n";
-    t += "      }\n";
-    t += "    }else if(m===2){\n";
-    t += "      this.lines[this.cursorRow]=[];\n";
-    t += "      this.cursorCol=0;\n";
-    t += "    }\n";
-    t += "  }else if(cmd==='J'){\n";
-    t += "    var m=p[0]||0;\n";
-    t += "    if(m===2||m===3){\n";
-    t += "      this.lines.push([]);\n";
-    t += "      this.cursorRow=this.lines.length-1;\n";
-    t += "      this.cursorCol=0;\n";
-    t += "    }else if(m===0){\n";
-    t += "      while(this.lines.length<=this.cursorRow) this.lines.push([]);\n";
-    t += "      var cur=this.lines[this.cursorRow];\n";
-    t += "      if(cur&&cur.length>this.cursorCol) cur.length=this.cursorCol;\n";
-    t += "    }\n";
-    t += "  }else if(cmd==='A'){\n";
-    t += "    this.cursorRow=Math.max(0,this.cursorRow-(p[0]||1));\n";
-    t += "  }else if(cmd==='B'){\n";
-    t += "    this.cursorRow=Math.min(this.lines.length-1,this.cursorRow+(p[0]||1));\n";
-    t += "  }else if(cmd==='C'){\n";
-    t += "    this.cursorCol+=(p[0]||1);\n";
-    t += "  }else if(cmd==='D'){\n";
-    t += "    this.cursorCol=Math.max(0,this.cursorCol-(p[0]||1));\n";
-    t += "  }else if(cmd==='G'||cmd==='`'){\n";
-    t += "    this.cursorCol=Math.max(0,(p[0]||1)-1);\n";
-    t += "  }else if(cmd==='H'||cmd==='f'){\n";
-    t += "    var c=p[1];\n";
-    t += "    if(c!==undefined){\n";
-    t += "      this.cursorCol=Math.max(0,c-1);\n";
-    t += "    }else{\n";
-    t += "      this.cursorCol=0;\n";
-    t += "    }\n";
-    t += "  }else if(cmd==='c'){\n";
-    t += "    if(ws&&ws.readyState===1){\n";
-    t += "      ws.send(new TextEncoder().encode('\\x1b[?1;2c'));\n";
-    t += "    }\n";
-    t += "  }\n";
-    t += "};\n";
-    t += "AnsiTerminal.prototype.scheduleRender=function(){\n";
-    t += "  if(this.renderTimer) return;\n";
-    t += "  var self=this;\n";
-    t += "  this.renderTimer=requestAnimationFrame(function(){ self.renderTimer=null; self.render(); });\n";
-    t += "};\n";
-    t += "AnsiTerminal.prototype.render=function(){\n";
-    t += "  var html='';\n";
-    t += "  for(var r=0;r<this.lines.length;r++){\n";
-    t += "    var line=this.lines[r], isCur=(r===this.cursorRow);\n";
-    t += "    if(!line||line.length===0){\n";
-    t += "      html+=isCur?'<span class=\"term-cursor\">&nbsp;</span>\\n':'\\n';\n";
-    t += "      continue;\n";
-    t += "    }\n";
-    t += "    var curStyle=null, spanBuf='', maxCol=Math.max(line.length,isCur?(this.cursorCol+1):line.length);\n";
-    t += "    for(var c=0;c<maxCol;c++){\n";
-    t += "      if(isCur&&c===this.cursorCol){\n";
-    t += "        if(spanBuf){ html+=this.wrapSpan(spanBuf,curStyle); spanBuf=''; curStyle=null; }\n";
-    t += "        var curChar=(line[c]&&line[c].ch)?line[c].ch:'&nbsp;';\n";
-    t += "        html+='<span class=\"term-cursor\">'+(curChar===' '?'&nbsp;':this.escapeChar(curChar))+'</span>';\n";
-    t += "        continue;\n";
-    t += "      }\n";
-    t += "      var cell=line[c]||{ch:' ',fg:null,bg:null,bold:false,underline:false,inverse:false};\n";
-    t += "      var ch=cell.ch||' ';\n";
-    t += "      var fg=cell.fg, bg=cell.bg;\n";
-    t += "      if(cell.inverse){ var tmp=fg||'#cbd5e1'; fg=bg||'#000000'; bg=tmp; }\n";
-    t += "      var sk=(fg||'')+'|'+(bg||'')+'|'+(cell.bold?'1':'0')+'|'+(cell.underline?'1':'0');\n";
-    t += "      if(curStyle!==sk){\n";
-    t += "        if(spanBuf){ html+=this.wrapSpan(spanBuf,curStyle); spanBuf=''; }\n";
-    t += "        curStyle=sk;\n";
-    t += "      }\n";
-    t += "      spanBuf+=this.escapeChar(ch);\n";
-    t += "    }\n";
-    t += "    if(spanBuf) html+=this.wrapSpan(spanBuf,curStyle);\n";
-    t += "    if(isCur&&this.cursorCol>=maxCol) html+='<span class=\"term-cursor\">&nbsp;</span>';\n";
-    t += "    html+='\\n';\n";
-    t += "  }\n";
-    t += "  this.el.innerHTML=html;\n";
-    t += "  this.el.scrollTop=this.el.scrollHeight;\n";
-    t += "};\n";
-    t += "AnsiTerminal.prototype.escapeChar=function(c){\n";
-    t += "  if(c==='&') return '&amp;'; if(c==='<') return '&lt;'; if(c==='>') return '&gt;'; if(c==='\"') return '&quot;'; return c;\n";
-    t += "};\n";
-    t += "AnsiTerminal.prototype.wrapSpan=function(text,sk){\n";
-    t += "  if(!sk) return text;\n";
-    t += "  var p=sk.split('|'), fg=p[0], bg=p[1], bold=p[2]==='1', und=p[3]==='1';\n";
-    t += "  if(!fg&&!bg&&!bold&&!und) return text;\n";
-    t += "  var s='';\n";
-    t += "  if(fg) s+='color:'+fg+';';\n";
-    t += "  if(bg) s+='background-color:'+bg+';';\n";
-    t += "  if(bold) s+='font-weight:700;';\n";
-    t += "  if(und) s+='text-decoration:underline;';\n";
-    t += "  return '<span style=\"'+s+'\">'+text+'</span>';\n";
-    t += "};\n";
-    t += "\n";
-    t += "var ws, termEl=document.getElementById('terminal'), dot=document.getElementById('ws_status_dot'), stext=document.getElementById('ws_status_text');\n";
-    t += "var emulator = new AnsiTerminal(termEl, 1200);\n";
-    t += "\n";
-    t += "// Restore session history from sessionStorage\n";
-    t += "try{\n";
-    t += "  var savedRaw = sessionStorage.getItem('oobm_term_raw') || '';\n";
-    t += "  if(savedRaw.length > 0) emulator.write(savedRaw);\n";
-    t += "}catch(e){}\n";
-    t += "\n";
-    t += "var PLATFORM_CMDS = {\n";
-    t += "  mikrotik: [\n";
-    t += "    { label: '/system resource print', cmd: '/system resource print' },\n";
-    t += "    { label: '/ip address print', cmd: '/ip address print' },\n";
-    t += "    { label: '/interface print', cmd: '/interface print' },\n";
-    t += "    { label: '/log print', cmd: '/log print follow-only' },\n";
-    t += "    { label: '/ip route print', cmd: '/ip route print' }\n";
-    t += "  ],\n";
-    t += "  linux: [\n";
-    t += "    { label: 'ip addr show', cmd: 'ip addr show' },\n";
-    t += "    { label: 'dmesg | tail -n 20', cmd: 'dmesg -T | tail -n 20' },\n";
-    t += "    { label: 'logread -f', cmd: 'logread -f' },\n";
-    t += "    { label: 'systemctl status', cmd: 'systemctl status' },\n";
-    t += "    { label: 'df -h', cmd: 'df -h' }\n";
-    t += "  ],\n";
-    t += "  cisco: [\n";
-    t += "    { label: 'show ip int brief', cmd: 'show ip interface brief' },\n";
-    t += "    { label: 'show running-config', cmd: 'show running-config' },\n";
-    t += "    { label: 'show int status', cmd: 'show interfaces status' },\n";
-    t += "    { label: 'show logging', cmd: 'show logging' },\n";
-    t += "    { label: 'term len 0', cmd: 'terminal length 0' }\n";
-    t += "  ],\n";
-    t += "  pfsense: [\n";
-    t += "    { label: 'ifconfig', cmd: 'ifconfig' },\n";
-    t += "    { label: 'pfctl -d (Disable FW)', cmd: 'pfctl -d' },\n";
-    t += "    { label: 'pfctl -e (Enable FW)', cmd: 'pfctl -e' },\n";
-    t += "    { label: 'top -b', cmd: 'top -b' },\n";
-    t += "    { label: 'netstat -rn', cmd: 'netstat -rn' }\n";
-    t += "  ],\n";
-    t += "  generic: [\n";
-    t += "    { label: 'help', cmd: 'help' },\n";
-    t += "    { label: 'status', cmd: 'status' },\n";
-    t += "    { label: 'version', cmd: 'version' },\n";
-    t += "    { label: 'ping 8.8.8.8', cmd: 'ping 8.8.8.8' },\n";
-    t += "    { label: 'reboot', cmd: 'reboot' }\n";
-    t += "  ]\n";
-    t += "};\n";
-    t += "function renderQuickCmds(p){\n";
-    t += "  var list = PLATFORM_CMDS[p] || PLATFORM_CMDS.mikrotik;\n";
-    t += "  var c = document.getElementById('quick_cmds');\n";
-    t += "  if(!c) return;\n";
-    t += "  c.innerHTML = '';\n";
-    t += "  list.forEach(function(item){\n";
-    t += "    var btn = document.createElement('button');\n";
-    t += "    btn.className = 'btn btn-outline btn-sm';\n";
-    t += "    btn.innerText = item.label;\n";
-    t += "    btn.onclick = function(){ sendCmd(item.cmd); };\n";
-    t += "    c.appendChild(btn);\n";
-    t += "  });\n";
-    t += "}\n";
-    t += "function changePlatform(p){\n";
-    t += "  renderQuickCmds(p);\n";
-    t += "  try{ localStorage.setItem('oobm_cli_platform', p); }catch(e){}\n";
-    t += "  fetch('/api/platform?p=' + encodeURIComponent(p), { method: 'POST' }).catch(()=>{});\n";
-    t += "}\n";
-    t += "function initWs(){\n";
-    t += "  var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';\n";
-    t += "  ws = new WebSocket(proto + '//' + location.hostname + ':81');\n";
-    t += "  ws.binaryType = 'arraybuffer';\n";
-    t += "  ws.onopen = function(){\n";
-    t += "    dot.style.background = 'var(--green)';\n";
-    t += "    stext.innerText = 'Connected (Port 81)';\n";
     if (_authRequired) {
-        t += "    ws.send('AUTH:" + String(_authUser) + ":" + String(_authPass) + "');\n";
+        String authStr = "    ws.send('AUTH:" + String(_authUser) + ":" + String(_authPass) + "');\n";
+        res.sendChunk(authStr);
     }
-    t += "  };\n";
-    t += "  ws.onclose = function(){\n";
-    t += "    dot.style.background = 'var(--danger)';\n";
-    t += "    stext.innerText = 'Disconnected';\n";
-    t += "  };\n";
-    t += "  ws.onmessage = function(e){\n";
-    t += "    var text = '';\n";
-    t += "    if(e.data instanceof ArrayBuffer){\n";
-    t += "      text = new TextDecoder().decode(e.data);\n";
-    t += "    } else { text = e.data; }\n";
-    t += "    try{\n";
-    t += "      var prev = sessionStorage.getItem('oobm_term_raw') || '';\n";
-    t += "      if(prev.length + text.length > 300000){\n";
-    t += "        prev = prev.substring(prev.length - 200000);\n";
-    t += "      }\n";
-    t += "      sessionStorage.setItem('oobm_term_raw', prev + text);\n";
-    t += "    }catch(err){}\n";
-    t += "    emulator.write(text);\n";
-    t += "  };\n";
-    t += "}\n";
-    t += "function sendSpecialKey(code){ if(ws && ws.readyState === 1){ ws.send(new Uint8Array([code])); } }\n";
-    t += "function sendEscapeSeq(seq){\n";
-    t += "  if(ws && ws.readyState === 1){\n";
-    t += "    var bytes = [27];\n";
-    t += "    for(var i=0; i<seq.length; i++) bytes.push(seq.charCodeAt(i));\n";
-    t += "    ws.send(new Uint8Array(bytes));\n";
-    t += "  }\n";
-    t += "}\n";
-    t += "function sendCmd(cmd){ if(ws && ws.readyState === 1){ ws.send(cmd + '\\r\\n'); } }\n";
-    t += "function clearTerminal(){\n";
-    t += "  try{ sessionStorage.removeItem('oobm_term_raw'); }catch(e){}\n";
-    t += "  emulator.reset();\n";
-    t += "}\n";
-    t += "function sendPasteData(clipText){\n";
-    t += "  if(!clipText || !ws || ws.readyState !== 1) return;\n";
-    t += "  var lines = clipText.replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n').split('\\n');\n";
-    t += "  if(lines.length <= 1){\n";
-    t += "    ws.send(clipText);\n";
-    t += "    return;\n";
-    t += "  }\n";
-    t += "  var idx = 0;\n";
-    t += "  function sendNext(){\n";
-    t += "    if(idx >= lines.length || !ws || ws.readyState !== 1) return;\n";
-    t += "    var l = lines[idx];\n";
-    t += "    idx++;\n";
-    t += "    var isLast = (idx >= lines.length);\n";
-    t += "    var hasTrailing = (clipText.endsWith('\\n') || clipText.endsWith('\\r'));\n";
-    t += "    ws.send(l + (isLast && !hasTrailing ? '' : '\\r'));\n";
-    t += "    if(!isLast) setTimeout(sendNext, 25);\n";
-    t += "  }\n";
-    t += "  sendNext();\n";
-    t += "}\n";
-    t += "termEl.addEventListener('paste', function(e){\n";
-    t += "  e.preventDefault();\n";
-    t += "  var clipText = (e.clipboardData || window.clipboardData).getData('text');\n";
-    t += "  sendPasteData(clipText);\n";
-    t += "});\n";
-    t += "window.addEventListener('paste', function(e){\n";
-    t += "  if(document.activeElement === termEl || termEl.contains(document.activeElement)){\n";
-    t += "    e.preventDefault();\n";
-    t += "    var clipText = (e.clipboardData || window.clipboardData).getData('text');\n";
-    t += "    sendPasteData(clipText);\n";
-    t += "  }\n";
-    t += "});\n";
-    t += "termEl.addEventListener('keydown', function(e){\n";
-    t += "  if(e.key === 'Backspace'){ e.preventDefault(); sendSpecialKey(8); return; }\n";
-    t += "  if(e.key === 'Tab'){ e.preventDefault(); sendSpecialKey(9); return; }\n";
-    t += "  if(e.key === 'Enter'){ e.preventDefault(); sendSpecialKey(13); return; }\n";
-    t += "  if(e.key === 'ArrowUp'){ e.preventDefault(); sendEscapeSeq('[A'); return; }\n";
-    t += "  if(e.key === 'ArrowDown'){ e.preventDefault(); sendEscapeSeq('[B'); return; }\n";
-    t += "  if(e.key === 'ArrowLeft'){ e.preventDefault(); sendEscapeSeq('[D'); return; }\n";
-    t += "  if(e.key === 'ArrowRight'){ e.preventDefault(); sendEscapeSeq('[C'); return; }\n";
-    t += "  if(e.key === 'Delete'){ e.preventDefault(); sendEscapeSeq('[3~'); return; }\n";
-    t += "  if(e.key === 'Home'){ e.preventDefault(); sendEscapeSeq('[H'); return; }\n";
-    t += "  if(e.key === 'End'){ e.preventDefault(); sendEscapeSeq('[F'); return; }\n";
-    t += "  if(e.key === 'PageUp'){ e.preventDefault(); sendEscapeSeq('[5~'); return; }\n";
-    t += "  if(e.key === 'PageDown'){ e.preventDefault(); sendEscapeSeq('[6~'); return; }\n";
-    t += "  if(e.ctrlKey && !e.altKey && !e.metaKey){\n";
-    t += "    var k = e.key.toLowerCase();\n";
-    t += "    if(k === 'c'){\n";
-    t += "      var sel = window.getSelection().toString();\n";
-    t += "      if(sel.length > 0) return;\n";
-    t += "      e.preventDefault(); sendSpecialKey(3); return;\n";
-    t += "    }\n";
-    t += "    if(k === 'v'){\n";
-    t += "      if(navigator.clipboard && navigator.clipboard.readText){\n";
-    t += "        e.preventDefault();\n";
-    t += "        navigator.clipboard.readText().then(function(t){ sendPasteData(t); }).catch(function(){});\n";
-    t += "        return;\n";
-    t += "      }\n";
-    t += "      return;\n";
-    t += "    }\n";
-    t += "    if(k.length === 1 && k >= 'a' && k <= 'z'){\n";
-    t += "      e.preventDefault();\n";
-    t += "      var code = k.charCodeAt(0) - 96;\n";
-    t += "      sendSpecialKey(code);\n";
-    t += "      return;\n";
-    t += "    }\n";
-    t += "  }\n";
-    t += "  if(e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey){\n";
-    t += "    e.preventDefault();\n";
-    t += "    if(ws && ws.readyState === 1) ws.send(e.key);\n";
-    t += "  }\n";
-    t += "});\n";
-    t += "renderQuickCmds(document.getElementById('platform_select').value);\n";
-    t += "initWs();\n";
-    t += "</script>\n";
 
-    _server.sendContent(t);
-    streamFooter();
+    res.sendChunk_P(PSTR(
+        "  };\n"
+        "  ws.onclose = function(){\n"
+        "    dot.style.background = 'var(--danger)';\n"
+        "    stext.innerText = 'Disconnected (Reconnecting...)';\n"
+        "    if(!wsRetryTimer){\n"
+        "      wsRetryTimer = setTimeout(function(){ wsRetryTimer = null; initWs(); }, 2000);\n"
+        "    }\n"
+        "  };\n"
+        "  ws.onerror = function(){\n"
+        "    dot.style.background = 'var(--danger)';\n"
+        "    stext.innerText = 'Connecting / Error...';\n"
+        "  };\n"
+        "  ws.onmessage = function(e){\n"
+        "    var text = '';\n"
+        "    if(e.data instanceof ArrayBuffer){\n"
+        "      text = new TextDecoder().decode(e.data);\n"
+        "    } else { text = e.data; }\n"
+        "    try{\n"
+        "      var prev = sessionStorage.getItem('oobm_term_raw') || '';\n"
+        "      if(prev.length + text.length > 300000){\n"
+        "        prev = prev.substring(prev.length - 200000);\n"
+        "      }\n"
+        "      sessionStorage.setItem('oobm_term_raw', prev + text);\n"
+        "    }catch(err){}\n"
+        "    emulator.write(text);\n"
+        "  };\n"
+        "}\n"
+        "function reconnectWs(){ if(wsRetryTimer){ clearTimeout(wsRetryTimer); wsRetryTimer = null; } initWs(); }\n"
+        "function sendSpecialKey(code){ if(ws && ws.readyState === 1){ ws.send(new Uint8Array([code])); } }\n"
+        "function sendEscapeSeq(seq){\n"
+        "  if(ws && ws.readyState === 1){\n"
+        "    var bytes = [27];\n"
+        "    for(var i=0; i<seq.length; i++) bytes.push(seq.charCodeAt(i));\n"
+        "    ws.send(new Uint8Array(bytes));\n"
+        "  }\n"
+        "}\n"
+        "function sendCmd(cmd){ if(ws && ws.readyState === 1){ ws.send(cmd + '\\r\\n'); } }\n"
+        "function clearTerminal(){\n"
+        "  try{ sessionStorage.removeItem('oobm_term_raw'); }catch(e){}\n"
+        "  emulator.reset();\n"
+        "}\n"
+        "function sendPasteData(clipText){\n"
+        "  if(!clipText || !ws || ws.readyState !== 1) return;\n"
+        "  var lines = clipText.replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n').split('\\n');\n"
+        "  if(lines.length <= 1){\n"
+        "    ws.send(clipText);\n"
+        "    return;\n"
+        "  }\n"
+        "  var idx = 0;\n"
+        "  function sendNext(){\n"
+        "    if(idx >= lines.length || !ws || ws.readyState !== 1) return;\n"
+        "    var l = lines[idx];\n"
+        "    idx++;\n"
+        "    var isLast = (idx >= lines.length);\n"
+        "    var hasTrailing = (clipText.endsWith('\\n') || clipText.endsWith('\\r'));\n"
+        "    ws.send(l + (isLast && !hasTrailing ? '' : '\\r'));\n"
+        "    if(!isLast) setTimeout(sendNext, 25);\n"
+        "  }\n"
+        "  sendNext();\n"
+        "}\n"
+        "window.addEventListener('paste', function(e){\n"
+        "  var ae = document.activeElement;\n"
+        "  if(ae === termEl || ae === termIn || termEl.contains(ae)){\n"
+        "    e.preventDefault();\n"
+        "    var clipText = (e.clipboardData || window.clipboardData).getData('text');\n"
+        "    sendPasteData(clipText);\n"
+        "  }\n"
+        "});\n"
+        "var termIn = document.getElementById('term_input'), imePrev = ' ';\n"
+        "var isTouchDev = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);\n"
+        "function focusTerm(){ try{ (isTouchDev ? termIn : termEl).focus({preventScroll:true}); }catch(e){} }\n"
+        "function imeReset(){ termIn.value = ' '; imePrev = ' '; }\n"
+        "termIn.addEventListener('input', function(e){\n"
+        "  var v = termIn.value, p = 0, m = Math.min(v.length, imePrev.length);\n"
+        "  while(p < m && v.charCodeAt(p) === imePrev.charCodeAt(p)) p++;\n"
+        "  var out = '';\n"
+        "  for(var i = p; i < imePrev.length; i++) out += '\\x08';\n"
+        "  out += v.substring(p).replace(/\\n/g, '\\r');\n"
+        "  if(out && ws && ws.readyState === 1) ws.send(out);\n"
+        "  imePrev = v;\n"
+        "  if(!e.isComposing) imeReset();\n"
+        "});\n"
+        "termIn.addEventListener('compositionend', imeReset);\n"
+        "termEl.addEventListener('click', function(){ if(!window.getSelection().toString()) focusTerm(); });\n"
+        "function termKeyDown(e){\n"
+        "  if(e.isComposing || e.keyCode === 229) return;\n"
+        "  if(e.key === 'Backspace'){ e.preventDefault(); sendSpecialKey(8); return; }\n"
+        "  if(e.key === 'Tab'){ e.preventDefault(); sendSpecialKey(9); return; }\n"
+        "  if(e.key === 'Enter'){ e.preventDefault(); sendSpecialKey(13); return; }\n"
+        "  if(e.key === 'ArrowUp'){ e.preventDefault(); sendEscapeSeq('[A'); return; }\n"
+        "  if(e.key === 'ArrowDown'){ e.preventDefault(); sendEscapeSeq('[B'); return; }\n"
+        "  if(e.key === 'ArrowLeft'){ e.preventDefault(); sendEscapeSeq('[D'); return; }\n"
+        "  if(e.key === 'ArrowRight'){ e.preventDefault(); sendEscapeSeq('[C'); return; }\n"
+        "  if(e.key === 'Delete'){ e.preventDefault(); sendEscapeSeq('[3~'); return; }\n"
+        "  if(e.key === 'Home'){ e.preventDefault(); sendEscapeSeq('[H'); return; }\n"
+        "  if(e.key === 'End'){ e.preventDefault(); sendEscapeSeq('[F'); return; }\n"
+        "  if(e.key === 'PageUp'){ e.preventDefault(); sendEscapeSeq('[5~'); return; }\n"
+        "  if(e.key === 'PageDown'){ e.preventDefault(); sendEscapeSeq('[6~'); return; }\n"
+        "  if(e.ctrlKey && !e.altKey && !e.metaKey){\n"
+        "    var k = e.key.toLowerCase();\n"
+        "    if(k === 'c'){\n"
+        "      var sel = window.getSelection().toString();\n"
+        "      if(sel.length > 0) return;\n"
+        "      e.preventDefault(); sendSpecialKey(3); return;\n"
+        "    }\n"
+        "    if(k === 'v'){\n"
+        "      if(navigator.clipboard && navigator.clipboard.readText){\n"
+        "        e.preventDefault();\n"
+        "        navigator.clipboard.readText().then(function(t){ sendPasteData(t); }).catch(function(){});\n"
+        "        return;\n"
+        "      }\n"
+        "      return;\n"
+        "    }\n"
+        "    if(k.length === 1 && k >= 'a' && k <= 'z'){\n"
+        "      e.preventDefault();\n"
+        "      var code = k.charCodeAt(0) - 96;\n"
+        "      sendSpecialKey(code);\n"
+        "      return;\n"
+        "    }\n"
+        "  }\n"
+        "  if(e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey){\n"
+        "    e.preventDefault();\n"
+        "    if(ws && ws.readyState === 1) ws.send(e.key);\n"
+        "  }\n"
+        "}\n"
+        "termEl.addEventListener('keydown', termKeyDown);\n"
+        "termIn.addEventListener('keydown', termKeyDown);\n"
+        "imeReset();\n"
+        "renderQuickCmds(document.getElementById('platform_select').value);\n"
+        "initWs();\n"
+        "</script>\n"
+    ));
+
+    streamFooter(res);
 }
 
 // =============================================================================
-// Settings Page (Matching Monitor & Emulator Design)
+// Settings Page (/settings)
 // =============================================================================
-void WebPortal::handleSettings() {
-    if (!checkAuth()) return;
+void WebPortal::renderSettings(ResponseWriter &res) {
+    streamHeader(res, "settings", "Settings");
 
-    streamHeader("settings", "Settings");
-
-    String devHost = _prefs.getString(NVS_KEY_HOSTNAME, DEFAULT_HOSTNAME);
+    String devHost = getDeviceHostname(_prefs);
     bool staticEn = _prefs.getBool(NVS_KEY_WIFI_DHCP, true) == false;
     String staticIp = _prefs.getString(NVS_KEY_WIFI_IP, "192.168.1.50");
     String staticMask = _prefs.getString(NVS_KEY_WIFI_SN, "255.255.255.0");
@@ -1134,223 +1348,238 @@ void WebPortal::handleSettings() {
         }
     }
 
-    // --- 1. SYSTEM ACTIONS & 2. NETWORK IDENTITY CARDS ---
-    String c1 = "";
-    c1.reserve(2500);
-    c1 += "<div class=\"table-card\">\n";
-    c1 += "  <h3 style=\"color:var(--navy);\">&#9881; System Actions</h3>\n";
-    c1 += "  <div style=\"display:flex;gap:12px;flex-wrap:wrap;\">\n";
-    c1 += "    <a href=\"/wifi\" class=\"btn btn-outline\">&#128246; Reconfigure WiFi</a>\n";
-    c1 += "    <a href=\"/update\" class=\"btn btn-outline\">&#128640; Firmware Update (OTA)</a>\n";
-    c1 += "    <button type=\"button\" onclick=\"restartDevice()\" class=\"btn btn-outline\">&#128260; Restart Device</button>\n";
-    c1 += "    <button type=\"button\" onclick=\"forgetWifi()\" class=\"btn btn-outline\">&#9888; Forget WiFi</button>\n";
-    c1 += "    <button type=\"button\" onclick=\"factoryReset()\" class=\"btn btn-outline\" style=\"color:var(--danger);border-color:var(--danger);\">&#9888; Factory Reset</button>\n";
-    c1 += "  </div>\n";
-    c1 += "</div>\n";
 
-    c1 += "<form id=\"settings_form\" onsubmit=\"saveSettings(event)\">\n";
+    // 1. SYSTEM ACTIONS
+    res.sendChunk_P(PSTR(
+        "<div class=\"table-card\">\n"
+        "  <h3 style=\"color:var(--navy);\">&#9881; System Actions</h3>\n"
+        "  <div style=\"display:flex;gap:12px;flex-wrap:wrap;\">\n"
+        "    <a href=\"/wifi\" class=\"btn btn-outline\">&#128246; Reconfigure WiFi</a>\n"
+        "    <a href=\"/update\" class=\"btn btn-outline\">&#128640; Firmware Update (OTA)</a>\n"
+        "    <button type=\"button\" onclick=\"restartDevice()\" class=\"btn btn-outline\">&#128260; Restart Device</button>\n"
+        "    <button type=\"button\" onclick=\"forgetWifi()\" class=\"btn btn-outline\">&#9888; Forget WiFi</button>\n"
+        "    <button type=\"button\" onclick=\"factoryReset()\" class=\"btn btn-outline\" style=\"color:var(--danger);border-color:var(--danger);\">&#9888; Factory Reset</button>\n"
+        "  </div>\n"
+        "</div>\n"
+        "<form id=\"settings_form\" onsubmit=\"saveSettings(event)\">\n"
+    ));
 
-    c1 += "  <div class=\"table-card\">\n";
-    c1 += "    <h3 style=\"color:var(--navy);\">&#127760; Network &amp; Device Identity</h3>\n";
-    c1 += "    <div style=\"margin-bottom:16px;max-width:440px;\">\n";
-    c1 += "      <label style=\"font-size:0.82rem;font-weight:600;display:block;margin-bottom:4px;color:var(--muted);\">Device Hostname (mDNS / OTA / DHCP):</label>\n";
-    c1 += "      <input type=\"text\" name=\"dev_host\" id=\"dev_host\" value=\"" + devHost + "\" placeholder=\"esp-oobm\" maxlength=\"32\" class=\"form-control\" style=\"font-family:monospace;\">\n";
-    c1 += "      <small style=\"color:var(--muted);display:block;margin-top:4px;\">Local access URL: <code>http://" + devHost + ".local/</code></small>\n";
-    c1 += "    </div>\n";
-    c1 += "    <label style=\"display:flex;align-items:center;gap:8px;font-weight:600;font-size:0.9rem;margin-bottom:12px;\">\n";
-    c1 += "      <input type=\"checkbox\" name=\"ip_static\" id=\"ip_static\" value=\"1\" " + String(staticEn ? "checked " : "") + "onchange=\"toggleStaticIp(this.checked)\"> Use Static IP Configuration (instead of DHCP)\n";
-    c1 += "    </label>\n";
-    c1 += "    <div id=\"static_ip_fields\" style=\"" + String(staticEn ? "" : "display:none;") + "\" class=\"form-grid\">\n";
-    c1 += "      <div class=\"form-group\"><label>Static IP Address:</label><input type=\"text\" name=\"ip_addr\" value=\"" + staticIp + "\" placeholder=\"192.168.1.150\" class=\"form-control\"></div>\n";
-    c1 += "      <div class=\"form-group\"><label>Subnet Mask:</label><input type=\"text\" name=\"ip_mask\" value=\"" + staticMask + "\" placeholder=\"255.255.255.0\" class=\"form-control\"></div>\n";
-    c1 += "      <div class=\"form-group\"><label>Default Gateway:</label><input type=\"text\" name=\"ip_gw\" value=\"" + staticGw + "\" placeholder=\"192.168.1.1\" class=\"form-control\"></div>\n";
-    c1 += "      <div class=\"form-group\"><label>Primary DNS Server:</label><input type=\"text\" name=\"ip_dns\" value=\"" + staticDns + "\" placeholder=\"1.1.1.1\" class=\"form-control\"></div>\n";
-    c1 += "    </div>\n";
-    c1 += "    <small style=\"color:var(--muted);display:block;margin-top:8px;\">When unchecked, device dynamically receives network parameters via DHCP from your router.</small>\n";
-    c1 += "  </div>\n";
-    _server.sendContent(c1);
-
-    // --- 3. TIME SYNCHRONIZATION & TIMEZONE CARD ---
-    String c2 = "";
-    c2.reserve(3500);
-    c2 += "  <div class=\"table-card\">\n";
-    c2 += "    <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;\">\n";
-    c2 += "      <h3 style=\"margin:0;color:var(--navy);\">&#128344; Time Synchronization &amp; Timezone</h3>\n";
-    c2 += "      <span id=\"ntp_status_badge\" class=\"badge " + String(isSynced ? "badge-ok\">Synced (OK)" : "badge-warn\">Waiting for sync") + "</span>\n";
-    c2 += "    </div>\n";
-    c2 += "    <div style=\"background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;\">\n";
-    c2 += "      <div>\n";
-    c2 += "        <div style=\"font-size:0.88rem;color:var(--text);font-weight:600;\">Current Device Time: <span id=\"live_time_str\" style=\"color:var(--navy);font-family:monospace;font-size:0.95rem;font-weight:700;margin-left:4px;\">" + currentTimeStr + "</span></div>\n";
-    c2 += "        <div style=\"font-size:0.80rem;color:var(--muted);margin-top:4px;\">Last Sync: <b id=\"live_sync_str\">" + lastSyncStr + "</b> &bull; Sync Interval: <b>Every 1 hour (3600s)</b></div>\n";
-    c2 += "      </div>\n";
-    c2 += "      <div><button type=\"button\" onclick=\"syncNtpNow()\" class=\"btn btn-outline\" style=\"padding:5px 12px;font-size:0.80rem;\">&#128260; Sync Time Now</button></div>\n";
-    c2 += "    </div>\n";
-    c2 += "    <label style=\"display:flex;align-items:center;gap:8px;font-weight:600;font-size:0.9rem;margin-bottom:12px;\">\n";
-    c2 += "      <input type=\"checkbox\" name=\"ntp_en\" value=\"1\" " + String(ntpEn ? "checked " : "") + "> Enable NTP Network Time Protocol\n";
-    c2 += "    </label>\n";
-    c2 += "    <div class=\"form-grid\">\n";
-    c2 += "      <div class=\"form-group\"><label>NTP Server:</label><input type=\"text\" name=\"ntp_srv\" value=\"" + ntpSrv + "\" placeholder=\"pool.ntp.org\" class=\"form-control\"></div>\n";
-    c2 += "      <div class=\"form-group\"><label>City &amp; Timezone:</label>\n";
-    c2 += "        <select name=\"tz_idx\" class=\"form-control\">\n";
-
-    for (size_t i = 0; i < TIMEZONE_COUNT; ++i) {
-        bool sel = (savedCity == TIMEZONE_LIST[i].city);
-        c2 += "<option value=\"";
-        c2 += String(i);
-        c2 += "\"";
-        if (sel) c2 += " selected";
-        c2 += ">";
-        c2 += TIMEZONE_LIST[i].city;
-        c2 += "</option>\n";
+    // 2. NETWORK IDENTITY CARD
+    {
+        String cNet = "";
+        cNet.reserve(1200);
+        cNet += "  <div class=\"table-card\">\n";
+        cNet += "    <h3 style=\"color:var(--navy);\">&#127760; Network &amp; Device Identity</h3>\n";
+        cNet += "    <div style=\"margin-bottom:16px;max-width:440px;\">\n";
+        cNet += "      <label style=\"font-size:0.82rem;font-weight:600;display:block;margin-bottom:4px;color:var(--muted);\">Device Hostname (mDNS / OTA / DHCP):</label>\n";
+        cNet += "      <input type=\"text\" name=\"dev_host\" id=\"dev_host\" value=\"" + devHost + "\" placeholder=\"esp-oobm-xxxxxx\" maxlength=\"32\" class=\"form-control\" style=\"font-family:monospace;\">\n";
+        cNet += "      <small style=\"color:var(--muted);display:block;margin-top:4px;\">Local URL: <code>http://" + devHost + ".local/</code></small>\n";
+        cNet += "    </div>\n";
+        cNet += "    <label style=\"display:flex;align-items:center;gap:8px;font-weight:600;font-size:0.9rem;margin-bottom:12px;\">\n";
+        cNet += "      <input type=\"checkbox\" name=\"ip_static\" id=\"ip_static\" value=\"1\" " + String(staticEn ? "checked " : "") + "onchange=\"toggleStaticIp(this.checked)\"> Use Static IP Configuration (instead of DHCP)\n";
+        cNet += "    </label>\n";
+        cNet += "    <div id=\"static_ip_fields\" style=\"" + String(staticEn ? "" : "display:none;") + "\" class=\"form-grid\">\n";
+        cNet += "      <div class=\"form-group\"><label>Static IP Address:</label><input type=\"text\" name=\"ip_addr\" value=\"" + staticIp + "\" placeholder=\"192.168.1.150\" class=\"form-control\"></div>\n";
+        cNet += "      <div class=\"form-group\"><label>Subnet Mask:</label><input type=\"text\" name=\"ip_mask\" value=\"" + staticMask + "\" placeholder=\"255.255.255.0\" class=\"form-control\"></div>\n";
+        cNet += "      <div class=\"form-group\"><label>Default Gateway:</label><input type=\"text\" name=\"ip_gw\" value=\"" + staticGw + "\" placeholder=\"192.168.1.1\" class=\"form-control\"></div>\n";
+        cNet += "      <div class=\"form-group\"><label>Primary DNS Server:</label><input type=\"text\" name=\"ip_dns\" value=\"" + staticDns + "\" placeholder=\"1.1.1.1\" class=\"form-control\"></div>\n";
+        cNet += "    </div>\n";
+        cNet += "    <small style=\"color:var(--muted);display:block;margin-top:8px;\">When unchecked, device dynamically receives network parameters via DHCP from your router.</small>\n";
+        cNet += "  </div>\n";
+        res.sendChunk(cNet);
     }
 
-    c2 += "        </select>\n";
-    c2 += "      </div>\n";
-    c2 += "      <div class=\"form-group\"><label>Time Format:</label>\n";
-    c2 += "        <select name=\"time_fmt\" class=\"form-control\">\n";
-    c2 += "          <option value=\"24\" " + String(timeFormat24h ? "selected" : "") + ">24 Hours (e.g. 20:15:00)</option>\n";
-    c2 += "          <option value=\"12\" " + String(!timeFormat24h ? "selected" : "") + ">12 Hours (e.g. 8:15:00 PM)</option>\n";
-    c2 += "        </select>\n";
-    c2 += "      </div>\n";
-    c2 += "    </div>\n";
-    c2 += "    <small style=\"color:var(--muted);display:block;margin-top:8px;\">Device time adjusts automatically for Daylight Saving Time (DST). Background daemon resynchronizes clock every 1 hour to correct hardware timer drift.</small>\n";
-    c2 += "  </div>\n";
-    _server.sendContent(c2);
-
-    // --- 4. SERIAL PORT & BRIDGE CARD ---
-    String c3 = "";
-    c3.reserve(2500);
-    uint32_t curBaud = serialBridge.getBaudRate();
-    uint8_t curDbits = serialBridge.getDataBits();
-    uint8_t curPar = serialBridge.getParity();
-    uint8_t curSbits = serialBridge.getStopBits();
-
-    c3 += "  <div class=\"table-card\">\n";
-    c3 += "    <h3 style=\"color:var(--navy);\">&#9889; Serial Console Port (UART0)</h3>\n";
-    c3 += "    <div class=\"form-grid\">\n";
-    c3 += "      <div class=\"form-group\"><label>Baud Rate</label>\n";
-    c3 += "        <select name=\"ser_baud\" class=\"form-control\">\n";
-    const uint32_t bauds[] = {9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600};
-    for (size_t b = 0; b < sizeof(bauds)/sizeof(bauds[0]); b++) {
-        c3 += "<option value=\"" + String(bauds[b]) + "\"" + String(curBaud == bauds[b] ? " selected" : "") + ">" + String(bauds[b]) + " bps" + (bauds[b] == 115200 ? " (Default)" : "") + "</option>\n";
+    // 4. TIME SYNCHRONIZATION & TIMEZONE CARD
+    {
+        String c2 = "";
+        c2.reserve(1200);
+        c2 += "  <div class=\"table-card\">\n";
+        c2 += "    <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:gap:10px;\">\n";
+        c2 += "      <h3 style=\"margin:0;color:var(--navy);\">&#128344; Time Synchronization &amp; Timezone</h3>\n";
+        c2 += "      <span id=\"ntp_status_badge\" class=\"badge " + String(isSynced ? "badge-ok\">Synced (OK)" : "badge-warn\">Waiting for sync") + "</span>\n";
+        c2 += "    </div>\n";
+        c2 += "    <div style=\"background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;\">\n";
+        c2 += "      <div>\n";
+        c2 += "        <div style=\"font-size:0.88rem;color:var(--text);font-weight:600;\">Current Device Time: <span id=\"live_time_str\" style=\"color:var(--navy);font-family:monospace;font-size:0.95rem;font-weight:700;margin-left:4px;\">" + currentTimeStr + "</span></div>\n";
+        c2 += "        <div style=\"font-size:0.80rem;color:var(--muted);margin-top:4px;\">Last Sync: <b id=\"live_sync_str\">" + lastSyncStr + "</b> &bull; Sync Interval: <b>Every 1 hour (3600s)</b></div>\n";
+        c2 += "      </div>\n";
+        c2 += "      <div><button type=\"button\" onclick=\"syncNtpNow()\" class=\"btn btn-outline\" style=\"padding:5px 12px;font-size:0.80rem;\">&#128260; Sync Time Now</button></div>\n";
+        c2 += "    </div>\n";
+        c2 += "    <label style=\"display:flex;align-items:center;gap:8px;font-weight:600;font-size:0.9rem;margin-bottom:12px;\">\n";
+        c2 += "      <input type=\"checkbox\" name=\"ntp_en\" value=\"1\" " + String(ntpEn ? "checked " : "") + "> Enable NTP Network Time Protocol\n";
+        c2 += "    </label>\n";
+        c2 += "    <div class=\"form-grid\">\n";
+        c2 += "      <div class=\"form-group\"><label>NTP Server:</label><input type=\"text\" name=\"ntp_srv\" value=\"" + ntpSrv + "\" placeholder=\"pool.ntp.org\" class=\"form-control\"></div>\n";
+        c2 += "      <div class=\"form-group\"><label>City &amp; Timezone:</label>\n";
+        c2 += "        <select name=\"tz_idx\" class=\"form-control\">\n";
+        res.sendChunk(c2);
     }
-    c3 += "        </select>\n";
-    c3 += "      </div>\n";
-    c3 += "      <div class=\"form-group\"><label>Data Bits</label>\n";
-    c3 += "        <select name=\"ser_dbits\" class=\"form-control\">\n";
-    c3 += "          <option value=\"8\" " + String(curDbits == 8 ? "selected" : "") + ">8 Bits (Standard)</option>\n";
-    c3 += "          <option value=\"7\" " + String(curDbits == 7 ? "selected" : "") + ">7 Bits</option>\n";
-    c3 += "        </select>\n";
-    c3 += "      </div>\n";
-    c3 += "      <div class=\"form-group\"><label>Parity</label>\n";
-    c3 += "        <select name=\"ser_parity\" class=\"form-control\">\n";
-    c3 += "          <option value=\"0\" " + String(curPar == 0 ? "selected" : "") + ">None (8N1)</option>\n";
-    c3 += "          <option value=\"1\" " + String(curPar == 1 ? "selected" : "") + ">Odd</option>\n";
-    c3 += "          <option value=\"2\" " + String(curPar == 2 ? "selected" : "") + ">Even</option>\n";
-    c3 += "        </select>\n";
-    c3 += "      </div>\n";
-    c3 += "      <div class=\"form-group\"><label>Stop Bits</label>\n";
-    c3 += "        <select name=\"ser_sbits\" class=\"form-control\">\n";
-    c3 += "          <option value=\"1\" " + String(curSbits == 1 ? "selected" : "") + ">1 Stop Bit</option>\n";
-    c3 += "          <option value=\"2\" " + String(curSbits == 2 ? "selected" : "") + ">2 Stop Bits</option>\n";
-    c3 += "        </select>\n";
-    c3 += "      </div>\n";
-    c3 += "    </div>\n";
-    c3 += "    <div style=\"margin-top:16px;display:flex;gap:20px;flex-wrap:wrap;\">\n";
-    c3 += "      <label class=\"switch-label\"><input type=\"checkbox\" name=\"ser_echo\" value=\"1\" " + String(serialBridge.getForceEcho() ? "checked " : "") + "> Force Local Echo</label>\n";
-    c3 += "      <label class=\"switch-label\"><input type=\"checkbox\" name=\"ser_banner\" value=\"1\" " + String(serialBridge.getGreetingBanner() ? "checked " : "") + "> Greeting Banner on Connect</label>\n";
-    c3 += "    </div>\n";
-    c3 += "  </div>\n";
-    _server.sendContent(c3);
 
-    // --- 5. TELNET SERVICE ---
-    String c4 = "";
-    c4.reserve(4000);
-    c4 += "  <div class=\"table-card\">\n";
-    c4 += "    <h3 style=\"color:var(--navy);\">&#128268; Telnet Console Service (RFC 854)</h3>\n";
-    c4 += "    <label style=\"display:flex;align-items:center;gap:8px;font-weight:600;font-size:0.9rem;margin-bottom:12px;\">\n";
-    c4 += "      <input type=\"checkbox\" name=\"tel_en\" value=\"1\" " + String(telnetServer.isEnabled() ? "checked " : "") + "> Enable Telnet Server Daemon\n";
-    c4 += "    </label>\n";
-    c4 += "    <div class=\"form-grid\">\n";
-    c4 += "      <div class=\"form-group\"><label>Telnet Port:</label><input type=\"number\" name=\"tel_port\" value=\"" + String(telnetServer.getPort()) + "\" class=\"form-control\"></div>\n";
-    c4 += "      <div class=\"form-group\">\n";
-    c4 += "        <label class=\"switch-label\" style=\"margin-top:24px;\"><input type=\"checkbox\" name=\"tel_auth\" value=\"1\" " + String(telnetServer.isAuthRequired() ? "checked " : "") + "> Require Telnet Password</label>\n";
-    c4 += "      </div>\n";
-    c4 += "      <div class=\"form-group\"><label>Telnet Password:</label>\n";
-    c4 += "        <div class=\"pwd-wrap\"><input type=\"password\" name=\"tel_pass\" value=\"" + _prefs.getString(NVS_KEY_TELNET_PASS, DEFAULT_TELNET_PASS) + "\" placeholder=\"Telnet Password\" class=\"form-control\">" + String(FPSTR(PWD_EYE_TOGGLE_HTML)) + "</div>\n";
-    c4 += "      </div>\n";
-    c4 += "    </div>\n";
-    c4 += "  </div>\n";
+    {
+        String tzOptions = "";
+        tzOptions.reserve(1500);
+        for (size_t i = 0; i < TIMEZONE_COUNT; ++i) {
+            bool sel = (savedCity == TIMEZONE_LIST[i].city);
+            tzOptions += "<option value=\"" + String(i) + "\"" + (sel ? " selected" : "") + ">" + TIMEZONE_LIST[i].city + "</option>\n";
+        }
+        res.sendChunk(tzOptions);
+    }
 
-    // --- 6. SECURITY CARD ---
-    c4 += "  <div class=\"table-card\">\n";
-    c4 += "    <h3 style=\"color:var(--navy);\">&#128274; Web &amp; API Security</h3>\n";
-    c4 += "    <label style=\"display:flex;align-items:center;gap:8px;font-weight:600;font-size:0.9rem;margin-bottom:12px;\">\n";
-    c4 += "      <input type=\"checkbox\" name=\"auth_en\" value=\"1\" " + String(_authRequired ? "checked " : "") + "> Enable HTTP Basic Authentication for Web UI\n";
-    c4 += "    </label>\n";
-    c4 += "    <div class=\"form-grid\">\n";
-    c4 += "      <div class=\"form-group\"><label>Admin Username:</label><input type=\"text\" name=\"auth_usr\" value=\"" + String(_authUser) + "\" class=\"form-control\"></div>\n";
-    c4 += "      <div class=\"form-group\"><label>Admin Password:</label>\n";
-    c4 += "        <div class=\"pwd-wrap\"><input type=\"password\" name=\"auth_pwd\" value=\"" + String(_authPass) + "\" placeholder=\"Admin Password\" class=\"form-control\">" + String(FPSTR(PWD_EYE_TOGGLE_HTML)) + "</div>\n";
-    c4 += "      </div>\n";
-    c4 += "    </div>\n";
-    c4 += "  </div>\n";
+    {
+        String c2End = "";
+        c2End.reserve(600);
+        c2End += "        </select>\n";
+        c2End += "      </div>\n";
+        c2End += "      <div class=\"form-group\"><label>Time Format:</label>\n";
+        c2End += "        <select name=\"time_fmt\" class=\"form-control\">\n";
+        c2End += "          <option value=\"24\" " + String(timeFormat24h ? "selected" : "") + ">24 Hours (e.g. 20:15:00)</option>\n";
+        c2End += "          <option value=\"12\" " + String(!timeFormat24h ? "selected" : "") + ">12 Hours (e.g. 8:15:00 PM)</option>\n";
+        c2End += "        </select>\n";
+        c2End += "      </div>\n";
+        c2End += "    </div>\n";
+        c2End += "    <small style=\"color:var(--muted);display:block;margin-top:8px;\">Device time adjusts automatically for Daylight Saving Time (DST). Resynchronizes clock every 1 hour.</small>\n";
+        c2End += "  </div>\n";
+        res.sendChunk(c2End);
+    }
 
-    c4 += "  <div style=\"margin-bottom:30px;\">\n";
-    c4 += "    <button type=\"submit\" class=\"btn btn-primary\" style=\"padding:10px 24px;\">Save All Settings</button>\n";
-    c4 += "  </div>\n";
-    c4 += "</form>\n";
+    // 5. SERIAL PORT & BRIDGE CARD
+    {
+        String c3 = "";
+        c3.reserve(1200);
+        uint32_t curBaud = serialBridge.getBaudRate();
+        uint8_t curDbits = serialBridge.getDataBits();
+        uint8_t curPar = serialBridge.getParity();
+        uint8_t curSbits = serialBridge.getStopBits();
 
-    c4 += "<script>\n";
-    c4 += "function toggleStaticIp(chk){ document.getElementById('static_ip_fields').style.display = chk ? 'grid' : 'none'; }\n";
-    c4 += "function syncNtpNow(){\n";
-    c4 += "  fetch('/api/ntp/sync', { method: 'POST' }).then(r=>r.json()).then(res=>{\n";
-    c4 += "    showToast('NTP sync triggered!');\n";
-    c4 += "    setTimeout(()=>location.reload(), 1500);\n";
-    c4 += "  }).catch(()=>showToast('Sync request failed', true));\n";
-    c4 += "}\n";
-    c4 += "function restartDevice(){\n";
-    c4 += "  if(confirm('Restart ESP32 device?')){\n";
-    c4 += "    fetch('/api/restart', { method: 'POST' }).then(()=>{\n";
-    c4 += "      showToast('Device is restarting... Please wait 10s.');\n";
-    c4 += "      setTimeout(()=>location.reload(), 10000);\n";
-    c4 += "    });\n";
-    c4 += "  }\n";
-    c4 += "}\n";
-    c4 += "function forgetWifi(){\n";
-    c4 += "  if(confirm('Forget WiFi settings? Device will disconnect and start in AP mode.')){\n";
-    c4 += "    location.href = '/reset_wifi';\n";
-    c4 += "  }\n";
-    c4 += "}\n";
-    c4 += "function factoryReset(){\n";
-    c4 += "  if(confirm('WARNING: Factory Reset will erase ALL configuration, passwords, and WiFi settings! Continue?')){\n";
-    c4 += "    fetch('/api/factory_reset', { method: 'POST' }).then(()=>{\n";
-    c4 += "      showToast('Factory reset complete. Restarting in AP mode...');\n";
-    c4 += "      setTimeout(()=>location.href='/', 8000);\n";
-    c4 += "    }).catch(()=>showToast('Reset failed', true));\n";
-    c4 += "  }\n";
-    c4 += "}\n";
-    c4 += "function saveSettings(e){\n";
-    c4 += "  e.preventDefault();\n";
-    c4 += "  var fd = new FormData(document.getElementById('settings_form'));\n";
-    c4 += "  fetch('/api/settings/save', { method: 'POST', body: fd }).then(r=>r.json()).then(res=>{\n";
-    c4 += "    if(res.success){ showToast('Settings saved successfully!'); }\n";
-    c4 += "    else { showToast('Error saving settings', true); }\n";
-    c4 += "  }).catch(()=>showToast('Save failed', true));\n";
-    c4 += "}\n";
-    c4 += "</script>\n";
-    _server.sendContent(c4);
+        c3 += "  <div class=\"table-card\">\n";
+        c3 += "    <h3 style=\"color:var(--navy);\">&#9889; Serial Console Port (UART0)</h3>\n";
+        c3 += "    <div class=\"form-grid\">\n";
+        c3 += "      <div class=\"form-group\"><label>Baud Rate</label>\n";
+        c3 += "        <select name=\"ser_baud\" class=\"form-control\">\n";
+        const uint32_t bauds[] = {9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600};
+        for (size_t b = 0; b < sizeof(bauds)/sizeof(bauds[0]); b++) {
+            c3 += "<option value=\"" + String(bauds[b]) + "\"" + String(curBaud == bauds[b] ? " selected" : "") + ">" + String(bauds[b]) + " bps" + (bauds[b] == 115200 ? " (Default)" : "") + "</option>\n";
+        }
+        c3 += "        </select>\n";
+        c3 += "      </div>\n";
+        c3 += "      <div class=\"form-group\"><label>Data Bits</label>\n";
+        c3 += "        <select name=\"ser_dbits\" class=\"form-control\">\n";
+        c3 += "          <option value=\"8\" " + String(curDbits == 8 ? "selected" : "") + ">8 Bits (Standard)</option>\n";
+        c3 += "          <option value=\"7\" " + String(curDbits == 7 ? "selected" : "") + ">7 Bits</option>\n";
+        c3 += "        </select>\n";
+        c3 += "      </div>\n";
+        c3 += "      <div class=\"form-group\"><label>Parity</label>\n";
+        c3 += "        <select name=\"ser_parity\" class=\"form-control\">\n";
+        c3 += "          <option value=\"0\" " + String(curPar == 0 ? "selected" : "") + ">None (8N1)</option>\n";
+        c3 += "          <option value=\"1\" " + String(curPar == 1 ? "selected" : "") + ">Odd</option>\n";
+        c3 += "          <option value=\"2\" " + String(curPar == 2 ? "selected" : "") + ">Even</option>\n";
+        c3 += "        </select>\n";
+        c3 += "      </div>\n";
+        c3 += "      <div class=\"form-group\"><label>Stop Bits</label>\n";
+        c3 += "        <select name=\"ser_sbits\" class=\"form-control\">\n";
+        c3 += "          <option value=\"1\" " + String(curSbits == 1 ? "selected" : "") + ">1 Stop Bit</option>\n";
+        c3 += "          <option value=\"2\" " + String(curSbits == 2 ? "selected" : "") + ">2 Stop Bits</option>\n";
+        c3 += "        </select>\n";
+        c3 += "      </div>\n";
+        c3 += "    </div>\n";
+        c3 += "    <div style=\"margin-top:16px;display:flex;gap:20px;flex-wrap:wrap;\">\n";
+        c3 += "      <label class=\"switch-label\"><input type=\"checkbox\" name=\"ser_echo\" value=\"1\" " + String(serialBridge.getForceEcho() ? "checked " : "") + "> Force Local Echo</label>\n";
+        c3 += "      <label class=\"switch-label\"><input type=\"checkbox\" name=\"ser_banner\" value=\"1\" " + String(serialBridge.getGreetingBanner() ? "checked " : "") + "> Greeting Banner on Connect</label>\n";
+        c3 += "    </div>\n";
+        c3 += "  </div>\n";
+        res.sendChunk(c3);
+    }
 
-    streamFooter();
+    // 6. TELNET SERVICE & 7. SECURITY CARD
+    {
+        String c4 = "";
+        c4.reserve(1500);
+        c4 += "  <div class=\"table-card\">\n";
+        c4 += "    <h3 style=\"color:var(--navy);\">&#128268; Telnet Console Service (RFC 854)</h3>\n";
+        c4 += "    <label style=\"display:flex;align-items:center;gap:8px;font-weight:600;font-size:0.9rem;margin-bottom:12px;\">\n";
+        c4 += "      <input type=\"checkbox\" name=\"tel_en\" value=\"1\" " + String(telnetServer.isEnabled() ? "checked " : "") + "> Enable Telnet Server Daemon\n";
+        c4 += "    </label>\n";
+        c4 += "    <div class=\"form-grid\">\n";
+        c4 += "      <div class=\"form-group\"><label>Telnet Port:</label><input type=\"number\" name=\"tel_port\" value=\"" + String(telnetServer.getPort()) + "\" class=\"form-control\"></div>\n";
+        c4 += "      <div class=\"form-group\">\n";
+        c4 += "        <label class=\"switch-label\" style=\"margin-top:24px;\"><input type=\"checkbox\" name=\"tel_auth\" value=\"1\" " + String(telnetServer.isAuthRequired() ? "checked " : "") + "> Require Telnet Password</label>\n";
+        c4 += "      </div>\n";
+        c4 += "      <div class=\"form-group\"><label>Telnet Password:</label>\n";
+        c4 += "        <div class=\"pwd-wrap\"><input type=\"password\" name=\"tel_pass\" value=\"" + _prefs.getString(NVS_KEY_TELNET_PASS, DEFAULT_TELNET_PASS) + "\" placeholder=\"Telnet Password\" class=\"form-control\">" + String(FPSTR(PWD_EYE_TOGGLE_HTML)) + "</div>\n";
+        c4 += "      </div>\n";
+        c4 += "    </div>\n";
+        c4 += "  </div>\n";
+
+        c4 += "  <div class=\"table-card\">\n";
+        c4 += "    <h3 style=\"color:var(--navy);\">&#128274; Web &amp; API Security</h3>\n";
+        c4 += "    <label style=\"display:flex;align-items:center;gap:8px;font-weight:600;font-size:0.9rem;margin-bottom:12px;\">\n";
+        c4 += "      <input type=\"checkbox\" name=\"auth_en\" value=\"1\" " + String(_authRequired ? "checked " : "") + "> Enable HTTP Basic Authentication for Web UI\n";
+        c4 += "    </label>\n";
+        c4 += "    <div class=\"form-grid\">\n";
+        c4 += "      <div class=\"form-group\"><label>Admin Username:</label><input type=\"text\" name=\"auth_usr\" value=\"" + String(_authUser) + "\" class=\"form-control\"></div>\n";
+        c4 += "      <div class=\"form-group\"><label>Admin Password:</label>\n";
+        c4 += "        <div class=\"pwd-wrap\"><input type=\"password\" name=\"auth_pwd\" value=\"" + String(_authPass) + "\" placeholder=\"Admin Password\" class=\"form-control\">" + String(FPSTR(PWD_EYE_TOGGLE_HTML)) + "</div>\n";
+        c4 += "      </div>\n";
+        c4 += "    </div>\n";
+        c4 += "  </div>\n";
+
+        c4 += "  <div style=\"margin-bottom:30px;\">\n";
+        c4 += "    <button type=\"submit\" class=\"btn btn-primary\" style=\"padding:10px 24px;\">Save All Settings</button>\n";
+        c4 += "  </div>\n";
+        c4 += "</form>\n";
+        res.sendChunk(c4);
+    }
+
+    // Settings JavaScript
+    res.sendChunk_P(PSTR(
+        "<script>\n"
+        "function toggleStaticIp(chk){ document.getElementById('static_ip_fields').style.display = chk ? 'grid' : 'none'; }\n"
+        "function syncNtpNow(){\n"
+        "  fetch('/api/ntp/sync', { method: 'POST' }).then(r=>r.json()).then(res=>{\n"
+        "    showToast('NTP sync triggered!');\n"
+        "    setTimeout(()=>location.reload(), 1500);\n"
+        "  }).catch(()=>showToast('Sync request failed', true));\n"
+        "}\n"
+        "function restartDevice(){\n"
+        "  if(confirm('Restart ESP32 device?')){\n"
+        "    fetch('/api/restart', { method: 'POST' }).then(()=>{\n"
+        "      showToast('Device is restarting... Please wait 10s.');\n"
+        "      setTimeout(()=>location.reload(), 10000);\n"
+        "    });\n"
+        "  }\n"
+        "}\n"
+        "function forgetWifi(){\n"
+        "  if(confirm('Forget WiFi settings? Device will disconnect and start in AP mode.')){\n"
+        "    location.href = '/reset_wifi';\n"
+        "  }\n"
+        "}\n"
+        "function factoryReset(){\n"
+        "  if(confirm('WARNING: Factory Reset will erase ALL configuration, passwords, and WiFi settings! Continue?')){\n"
+        "    fetch('/api/factory_reset', { method: 'POST' }).then(()=>{\n"
+        "      showToast('Factory reset complete. Restarting in AP mode...');\n"
+        "      setTimeout(()=>location.href='/', 8000);\n"
+        "    }).catch(()=>showToast('Reset failed', true));\n"
+        "  }\n"
+        "}\n"
+        "function saveSettings(e){\n"
+        "  e.preventDefault();\n"
+        "  var fd = new FormData(document.getElementById('settings_form'));\n"
+        "  fetch('/api/settings/save', { method: 'POST', body: fd }).then(r=>r.json()).then(res=>{\n"
+        "    if(res.success){ showToast('Settings saved successfully!'); }\n"
+        "    else { showToast('Error saving settings', true); }\n"
+        "  }).catch(()=>showToast('Save failed', true));\n"
+        "}\n"
+        "</script>\n"
+    ));
+
+    streamFooter(res);
 }
 
 // =============================================================================
 // Dedicated Reconfigure WiFi Page (/wifi)
 // =============================================================================
-void WebPortal::handleWifiPage() {
-    if (!checkAuth()) return;
-
-    streamHeader("settings", "Reconfigure WiFi");
+void WebPortal::renderWifiPage(ResponseWriter &res) {
+    streamHeader(res, "settings", "Reconfigure WiFi");
 
     String staSsid = _prefs.getString(NVS_KEY_WIFI_SSID, "");
     String staPass = _prefs.getString(NVS_KEY_WIFI_PASS, "");
@@ -1366,134 +1595,138 @@ void WebPortal::handleWifiPage() {
     bool apCaptive = _prefs.getBool(NVS_KEY_AP_CAPTIVE, true);
     bool mndpEn = _prefs.getBool(NVS_KEY_MNDP_EN, true);
 
-    String w = "";
-    w.reserve(4500);
-    w += "<div style=\"margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;\">\n";
-    w += "  <h2 style=\"margin:0;font-size:1.25rem;\">&#128246; Reconfigure Wi-Fi Network</h2>\n";
-    w += "  <a href=\"/settings\" class=\"btn btn-outline btn-sm\">&larr; Back to Settings</a>\n";
-    w += "</div>\n";
-    w += "<form id=\"wifi_form\" onsubmit=\"saveWifi(event)\">\n";
-    w += "  <div class=\"table-card\">\n";
-    w += "    <h3 style=\"color:var(--navy);\">1. Station Mode (Connect to Existing Wi-Fi)</h3>\n";
-    w += "    <div style=\"margin-bottom:16px;\">\n";
-    w += "      <label style=\"font-size:0.84rem;font-weight:600;color:var(--muted);display:block;margin-bottom:6px;\">Available Networks (Scanned):</label>\n";
-    w += "      <div style=\"display:flex;gap:8px;flex-wrap:wrap;align-items:stretch;\">\n";
-    w += "        <select id=\"scanned_ssid\" class=\"form-control\" onchange=\"selectSsid(this.value)\" style=\"flex:1;min-width:200px;\">\n";
-    w += "          <option value=\"\">-- Click 'Scan Networks' to search --</option>\n";
-    w += "        </select>\n";
-    w += "        <button type=\"button\" id=\"btn_scan\" class=\"btn btn-outline\" onclick=\"triggerScan()\" style=\"padding:8px 16px;flex-shrink:0;\">&#128269; <span>Scan Networks</span></button>\n";
-    w += "      </div>\n";
-    w += "    </div>\n";
-    w += "    <div class=\"form-grid\">\n";
-    w += "      <div class=\"form-group\"><label>Network SSID:</label><input type=\"text\" name=\"sta_ssid\" id=\"sta_ssid\" value=\"" + staSsid + "\" placeholder=\"Enter Wi-Fi SSID\" class=\"form-control\"></div>\n";
-    w += "      <div class=\"form-group\"><label>Wi-Fi Password:</label>\n";
-    w += "        <div class=\"pwd-wrap\"><input type=\"password\" name=\"sta_pass\" id=\"sta_pass\" value=\"" + staPass + "\" placeholder=\"WPA/WPA2 Password\" class=\"form-control\">" + String(FPSTR(PWD_EYE_TOGGLE_HTML)) + "</div>\n";
-    w += "      </div>\n";
-    w += "    </div>\n";
-    w += "  </div>\n";
+    res.sendChunk_P(PSTR(
+        "<div style=\"margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;\">\n"
+        "  <h2 style=\"margin:0;font-size:1.25rem;\">&#128246; Reconfigure Wi-Fi Network</h2>\n"
+        "  <a href=\"/settings\" class=\"btn btn-outline btn-sm\">&larr; Back to Settings</a>\n"
+        "</div>\n"
+        "<form id=\"wifi_form\" onsubmit=\"saveWifi(event)\">\n"
+        "  <div class=\"table-card\">\n"
+        "    <h3 style=\"color:var(--navy);\">1. Station Mode (Connect to Existing Wi-Fi)</h3>\n"
+        "    <div style=\"margin-bottom:16px;\">\n"
+        "      <label style=\"font-size:0.84rem;font-weight:600;color:var(--muted);display:block;margin-bottom:6px;\">Available Networks (Scanned):</label>\n"
+        "      <div style=\"display:flex;gap:8px;flex-wrap:wrap;align-items:stretch;\">\n"
+        "        <select id=\"scanned_ssid\" class=\"form-control\" onchange=\"selectSsid(this.value)\" style=\"flex:1;min-width:200px;\">\n"
+        "          <option value=\"\">-- Click 'Scan Networks' to search --</option>\n"
+        "        </select>\n"
+        "        <button type=\"button\" id=\"btn_scan\" class=\"btn btn-outline\" onclick=\"triggerScan()\" style=\"padding:8px 16px;flex-shrink:0;\">&#128269; <span>Scan Networks</span></button>\n"
+        "      </div>\n"
+        "    </div>\n"
+        "    <div class=\"form-grid\">\n"
+    ));
 
-    w += "  <div class=\"table-card\">\n";
-    w += "    <h3 style=\"color:var(--navy);\">2. Access Point (AP) Settings</h3>\n";
-    w += "    <div class=\"form-grid\">\n";
-    w += "      <div class=\"form-group\"><label>AP SSID:</label><input type=\"text\" name=\"ap_ssid\" value=\"" + apSsid + "\" placeholder=\"ESP-OOBM-XXXXXX\" class=\"form-control\"></div>\n";
-    w += "      <div class=\"form-group\"><label>AP Password (Empty = Open):</label>\n";
-    w += "        <div class=\"pwd-wrap\"><input type=\"password\" name=\"ap_pass\" value=\"" + apPass + "\" placeholder=\"Optional AP Password\" class=\"form-control\">" + String(FPSTR(PWD_EYE_TOGGLE_HTML)) + "</div>\n";
-    w += "      </div>\n";
-    w += "      <div class=\"form-group\"><label>AP Channel:</label>\n";
-    w += "        <select name=\"ap_chan\" class=\"form-control\">\n";
-    w += "          <option value=\"1\" " + String(apChan == 1 ? "selected" : "") + ">Channel 1</option>\n";
-    w += "          <option value=\"6\" " + String(apChan == 6 ? "selected" : "") + ">Channel 6</option>\n";
-    w += "          <option value=\"11\" " + String(apChan == 11 ? "selected" : "") + ">Channel 11</option>\n";
-    w += "        </select>\n";
-    w += "      </div>\n";
-    w += "    </div>\n";
-    w += "    <div style=\"margin-top:14px;display:flex;gap:20px;flex-wrap:wrap;\">\n";
-    w += "      <label class=\"switch-label\"><input type=\"checkbox\" name=\"ap_hidden\" value=\"1\" " + String(apHidden ? "checked " : "") + "> Hide AP SSID</label>\n";
-    w += "      <label class=\"switch-label\"><input type=\"checkbox\" name=\"ap_captive\" value=\"1\" " + String(apCaptive ? "checked " : "") + "> Captive Portal Redirection</label>\n";
-    w += "      <label class=\"switch-label\"><input type=\"checkbox\" name=\"mndp_en\" value=\"1\" " + String(mndpEn ? "checked " : "") + "> MNDP Neighbor Discovery (UDP 5678)</label>\n";
-    w += "    </div>\n";
-    w += "  </div>\n";
+    String wSta = "";
+    wSta.reserve(800);
+    wSta += "      <div class=\"form-group\"><label>Network SSID:</label><input type=\"text\" name=\"sta_ssid\" id=\"sta_ssid\" value=\"" + staSsid + "\" placeholder=\"Enter Wi-Fi SSID\" class=\"form-control\"></div>\n";
+    wSta += "      <div class=\"form-group\"><label>Wi-Fi Password:</label>\n";
+    wSta += "        <div class=\"pwd-wrap\"><input type=\"password\" name=\"sta_pass\" id=\"sta_pass\" value=\"" + staPass + "\" placeholder=\"WPA/WPA2 Password\" class=\"form-control\">" + String(FPSTR(PWD_EYE_TOGGLE_HTML)) + "</div>\n";
+    wSta += "      </div>\n";
+    wSta += "    </div>\n";
+    wSta += "  </div>\n";
+    res.sendChunk(wSta);
 
-    w += "  <div style=\"margin-bottom:30px;\">\n";
-    w += "    <button type=\"submit\" class=\"btn btn-primary\" style=\"padding:10px 24px;\">Connect &amp; Save Wi-Fi</button>\n";
-    w += "  </div>\n";
-    w += "</form>\n";
+    String wAp = "";
+    wAp.reserve(1200);
+    wAp += "  <div class=\"table-card\">\n";
+    wAp += "    <h3 style=\"color:var(--navy);\">2. Access Point (AP) Settings</h3>\n";
+    wAp += "    <div class=\"form-grid\">\n";
+    wAp += "      <div class=\"form-group\"><label>AP SSID:</label><input type=\"text\" name=\"ap_ssid\" value=\"" + apSsid + "\" placeholder=\"ESP-OOBM-XXXXXX\" class=\"form-control\"></div>\n";
+    wAp += "      <div class=\"form-group\"><label>AP Password (Empty = Open):</label>\n";
+    wAp += "        <div class=\"pwd-wrap\"><input type=\"password\" name=\"ap_pass\" value=\"" + apPass + "\" placeholder=\"Optional AP Password\" class=\"form-control\">" + String(FPSTR(PWD_EYE_TOGGLE_HTML)) + "</div>\n";
+    wAp += "      </div>\n";
+    wAp += "      <div class=\"form-group\"><label>AP Channel:</label>\n";
+    wAp += "        <select name=\"ap_chan\" class=\"form-control\">\n";
+    wAp += "          <option value=\"1\" " + String(apChan == 1 ? "selected" : "") + ">Channel 1</option>\n";
+    wAp += "          <option value=\"6\" " + String(apChan == 6 ? "selected" : "") + ">Channel 6</option>\n";
+    wAp += "          <option value=\"11\" " + String(apChan == 11 ? "selected" : "") + ">Channel 11</option>\n";
+    wAp += "        </select>\n";
+    wAp += "      </div>\n";
+    wAp += "    </div>\n";
+    wAp += "    <div style=\"margin-top:14px;display:flex;gap:20px;flex-wrap:wrap;\">\n";
+    wAp += "      <label class=\"switch-label\"><input type=\"checkbox\" name=\"ap_hidden\" value=\"1\" " + String(apHidden ? "checked " : "") + "> Hide AP SSID</label>\n";
+    wAp += "      <label class=\"switch-label\"><input type=\"checkbox\" name=\"ap_captive\" value=\"1\" " + String(apCaptive ? "checked " : "") + "> Captive Portal Redirection</label>\n";
+    wAp += "      <label class=\"switch-label\"><input type=\"checkbox\" name=\"mndp_en\" value=\"1\" " + String(mndpEn ? "checked " : "") + "> MNDP Neighbor Discovery (UDP 5678)</label>\n";
+    wAp += "    </div>\n";
+    wAp += "  </div>\n";
+    wAp += "  <div style=\"margin-bottom:30px;\">\n";
+    wAp += "    <button type=\"submit\" class=\"btn btn-primary\" style=\"padding:10px 24px;\">Connect &amp; Save Wi-Fi</button>\n";
+    wAp += "  </div>\n";
+    wAp += "</form>\n";
+    res.sendChunk(wAp);
 
-    w += "<script>\n";
-    w += "function selectSsid(v){\n";
-    w += "  if(v){\n";
-    w += "    var sta = document.getElementById('sta_ssid');\n";
-    w += "    if(sta) sta.value = v;\n";
-    w += "    var pwd = document.getElementById('sta_pass');\n";
-    w += "    if(pwd) pwd.focus();\n";
-    w += "  }\n";
-    w += "}\n";
-    w += "var scanInterval = null;\n";
-    w += "function triggerScan(){\n";
-    w += "  var btn = document.getElementById('btn_scan');\n";
-    w += "  var s = document.getElementById('scanned_ssid');\n";
-    w += "  if(btn){ btn.disabled = true; btn.innerHTML = '&#9203; <span>Scanning...</span>'; }\n";
-    w += "  if(s){ s.innerHTML = '<option value=\"\">Scanning networks, please wait...</option>'; }\n";
-    w += "  function pollScan(){\n";
-    w += "    fetch('/api/scan').then(r=>r.json()).then(res=>{\n";
-    w += "      if(res.status === 'ready' && res.networks){\n";
-    w += "        if(scanInterval){ clearInterval(scanInterval); scanInterval = null; }\n";
-    w += "        if(btn){ btn.disabled = false; btn.innerHTML = '&#128260; <span>Rescan</span>'; }\n";
-    w += "        s.innerHTML = '<option value=\"\">-- Select a network (' + res.networks.length + ' found) --</option>';\n";
-    w += "        res.networks.forEach(function(net){\n";
-    w += "          var opt = document.createElement('option');\n";
-    w += "          opt.value = net.ssid;\n";
-    w += "          opt.innerText = net.ssid + ' (' + net.rssi + ' dBm' + (net.secure ? ' \\u{1F512}' : '') + ')';\n";
-    w += "          s.appendChild(opt);\n";
-    w += "        });\n";
-    w += "      }\n";
-    w += "    }).catch(function(){});\n";
-    w += "  }\n";
-    w += "  pollScan();\n";
-    w += "  if(!scanInterval){\n";
-    w += "    scanInterval = setInterval(pollScan, 1000);\n";
-    w += "    setTimeout(function(){\n";
-    w += "      if(scanInterval){\n";
-    w += "        clearInterval(scanInterval);\n";
-    w += "        scanInterval = null;\n";
-    w += "        if(btn){ btn.disabled = false; btn.innerHTML = '&#128269; <span>Scan Networks</span>'; }\n";
-    w += "      }\n";
-    w += "    }, 15000);\n";
-    w += "  }\n";
-    w += "}\n";
-    w += "function saveWifi(e){\n";
-    w += "  e.preventDefault();\n";
-    w += "  var fd = new FormData(document.getElementById('wifi_form'));\n";
-    w += "  var btn = document.querySelector('#wifi_form button[type=\"submit\"]');\n";
-    w += "  if(btn){ btn.disabled = true; btn.innerText = 'Connecting & Rebooting...'; }\n";
-    w += "  fetch('/api/wifi/save', { method: 'POST', body: fd }).then(r=>r.json()).then(res=>{\n";
-    w += "    if(res.success){\n";
-    w += "      showToast('Wi-Fi saved! Rebooting to connect to network...');\n";
-    w += "      setTimeout(function(){ location.href = '/'; }, 6000);\n";
-    w += "    } else {\n";
-    w += "      if(btn){ btn.disabled = false; btn.innerText = 'Connect & Save Wi-Fi'; }\n";
-    w += "      showToast('Error saving Wi-Fi', true);\n";
-    w += "    }\n";
-    w += "  }).catch(()=>{\n";
-    w += "    showToast('Rebooting device...', false);\n";
-    w += "    setTimeout(function(){ location.href = '/'; }, 6000);\n";
-    w += "  });\n";
-    w += "}\n";
-    w += "</script>\n";
+    res.sendChunk_P(PSTR(
+        "<script>\n"
+        "function selectSsid(v){\n"
+        "  if(v){\n"
+        "    var sta = document.getElementById('sta_ssid');\n"
+        "    if(sta) sta.value = v;\n"
+        "    var pwd = document.getElementById('sta_pass');\n"
+        "    if(pwd) pwd.focus();\n"
+        "  }\n"
+        "}\n"
+        "var scanInterval = null;\n"
+        "function triggerScan(){\n"
+        "  var btn = document.getElementById('btn_scan');\n"
+        "  var s = document.getElementById('scanned_ssid');\n"
+        "  if(btn){ btn.disabled = true; btn.innerHTML = '&#9203; <span>Scanning...</span>'; }\n"
+        "  if(s){ s.innerHTML = '<option value=\"\">Scanning networks, please wait...</option>'; }\n"
+        "  var scanDeadline = Date.now() + 15000;\n"
+        "  function finishScan(ready){\n"
+        "    if(scanInterval){ clearTimeout(scanInterval); scanInterval = null; }\n"
+        "    if(btn){ btn.disabled = false; btn.innerHTML = ready ? '&#128260; <span>Rescan</span>' : '&#128269; <span>Scan Networks</span>'; }\n"
+        "  }\n"
+        "  function pollScan(){\n"
+        "    fetch('/api/scan').then(r=>r.json()).then(res=>{\n"
+        "      if(res.status === 'ready' && res.networks){\n"
+        "        finishScan(true);\n"
+        "        s.innerHTML = '<option value=\"\">-- Select a network (' + res.networks.length + ' found) --</option>';\n"
+        "        res.networks.forEach(function(net){\n"
+        "          var opt = document.createElement('option');\n"
+        "          opt.value = net.ssid;\n"
+        "          opt.innerText = net.ssid + ' (' + net.rssi + ' dBm' + (net.secure ? ' \\u{1F512}' : '') + ')';\n"
+        "          s.appendChild(opt);\n"
+        "        });\n"
+        "      } else if(Date.now() < scanDeadline){\n"
+        "        scanInterval = setTimeout(pollScan, 2000);\n"
+        "      } else { finishScan(false); }\n"
+        "    }).catch(function(){\n"
+        "      if(Date.now() < scanDeadline) scanInterval = setTimeout(pollScan, 2000);\n"
+        "      else finishScan(false);\n"
+        "    });\n"
+        "  }\n"
+        "  pollScan();\n"
+        "}\n"
+        "function saveWifi(e){\n"
+        "  e.preventDefault();\n"
+        "  var fd = new FormData(document.getElementById('wifi_form'));\n"
+        "  var btn = document.querySelector('#wifi_form button[type=\"submit\"]');\n"
+        "  if(btn){ btn.disabled = true; btn.innerText = 'Connecting & Rebooting...'; }\n"
+        "  fetch('/api/wifi/save', { method: 'POST', body: fd }).then(r=>r.json()).then(res=>{\n"
+        "    if(res.success){\n"
+        "      showToast('Wi-Fi saved! Rebooting to connect to network...');\n"
+        "      setTimeout(function(){ location.href = '/'; }, 6000);\n"
+        "    } else {\n"
+        "      if(btn){ btn.disabled = false; btn.innerText = 'Connect & Save Wi-Fi'; }\n"
+        "      showToast('Error saving Wi-Fi', true);\n"
+        "    }\n"
+        "  }).catch(()=>{\n"
+        "    showToast('Rebooting device...', false);\n"
+        "    setTimeout(function(){ location.href = '/'; }, 6000);\n"
+        "  });\n"
+        "}\n"
+        "</script>\n"
+    ));
 
-    _server.sendContent(w);
-    streamFooter();
+    streamFooter(res);
 }
 
 // =============================================================================
 // Dedicated Firmware Update (OTA) Page (/update)
 // =============================================================================
-void WebPortal::handleUpdatePage() {
-    if (!checkAuth()) return;
+void WebPortal::renderUpdatePage(ResponseWriter &res) {
+    streamHeader(res, "settings", "Firmware Update");
 
-    streamHeader("settings", "Firmware Update");
-
-    _server.sendContent_P(PSTR(
+    res.sendChunk_P(PSTR(
         "<div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;\">"
         "  <h2 style=\"margin:0;font-size:1.25rem;\">&#128640; Over-The-Air Firmware Update</h2>"
         "  <a href=\"/settings\" class=\"btn btn-outline btn-sm\">&larr; Back to Settings</a>"
@@ -1554,68 +1787,36 @@ void WebPortal::handleUpdatePage() {
         "</script>"
     ));
 
-    streamFooter();
+    streamFooter(res);
 }
 
-void WebPortal::handleMetrics() {
-    if (_authRequired && !isAuthenticated()) {
-        _server.requestAuthentication(BASIC_AUTH, "ESP-OOBM");
-        return;
-    }
-
+void WebPortal::renderMetrics(ResponseWriter &res) {
     SystemStatsData stats;
     SystemStats::update(stats);
-    PrometheusExporter::generateMetrics(_server, stats);
-}
-
-void WebPortal::handleSyncNtp() {
-    if (!isAuthenticated()) {
-        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-        return;
-    }
-    triggerNtpSync();
-    if (_server.hasArg("redirect")) {
-        _server.sendHeader("Location", _server.arg("redirect"));
-        _server.send(302, "text/plain", "");
-    } else {
-        _server.send(200, "application/json", "{\"success\":true}");
-    }
-}
-
-void WebPortal::handleResetWifi() {
-    if (!isAuthenticated()) {
-        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-        return;
-    }
-    _prefs.remove(NVS_KEY_WIFI_SSID);
-    _prefs.remove(NVS_KEY_WIFI_PASS);
-    _server.send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='utf-8'><style>body{font-family:sans-serif;text-align:center;padding:50px;background:#0b1120;color:#e2e8f0;}</style></head><body><h3 style='color:#ef4444;'>WiFi credentials erased.</h3><p>Restarting into Standalone AP mode...</p></body></html>");
-    delay(1000);
-    ESP.restart();
+    PrometheusExporter::generateMetrics(res, stats);
 }
 
 // =============================================================================
 // Login & Session Authentication Handlers
 // =============================================================================
-void WebPortal::handleLoginPage() {
-    _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-    _server.send(200, "text/html; charset=utf-8", "");
+void WebPortal::renderLoginPage(ResponseWriter &res, const char *errMsg) {
+    res.setContentType("text/html; charset=utf-8");
 
-    _server.sendContent_P(PSTR("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\">"
-                               "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"
-                               "<title>Sign In - ESP-OOBM</title>"
-                               "<link rel=\"icon\" type=\"image/svg+xml\" href=\"/favicon.svg\">"
-                               "<link rel=\"icon\" type=\"image/x-icon\" href=\"/favicon.ico\">"
-                               "<style>"));
-    _server.sendContent_P(COMMON_CSS);
-    _server.sendContent_P(PSTR(
+    res.sendChunk_P(PSTR("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\">"
+                         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"
+                         "<title>Sign In - ESP-OOBM</title>"
+                         "<link rel=\"icon\" type=\"image/svg+xml\" href=\"/favicon.svg\">"
+                         "<link rel=\"icon\" type=\"image/x-icon\" href=\"/favicon.ico\">"
+                         "<style>"));
+    res.sendChunk_P(COMMON_CSS);
+    res.sendChunk_P(PSTR(
         ".login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}\n"
         ".login-card{background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.25);width:100%;max-width:380px;overflow:hidden;position:relative;}\n"
         ".login-body{padding:28px 24px;}\n"
     ));
-    _server.sendContent_P(PSTR("</style><script>"));
-    _server.sendContent_P(COMMON_JS);
-    _server.sendContent_P(PSTR(
+    res.sendChunk_P(PSTR("</style><script>"));
+    res.sendChunk_P(COMMON_JS);
+    res.sendChunk_P(PSTR(
         "function doLogin(e){\n"
         "  if(e) e.preventDefault();\n"
         "  var u = document.getElementById('usr').value.trim();\n"
@@ -1629,11 +1830,17 @@ void WebPortal::handleLoginPage() {
         "  }\n"
         "  btn.disabled = true;\n"
         "  btn.innerText = 'Signing In...';\n"
-        "  var fd = new FormData();\n"
-        "  fd.append('usr', u);\n"
-        "  fd.append('pwd', p);\n"
-        "  fetch('/api/login', { method: 'POST', body: fd })\n"
-        "    .then(function(r){ return r.json(); })\n"
+        "  var params = new URLSearchParams();\n"
+        "  params.append('usr', u);\n"
+        "  params.append('pwd', p);\n"
+        "  fetch('/api/login', {\n"
+        "    method: 'POST',\n"
+        "    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },\n"
+        "    body: params.toString()\n"
+        "  })\n"
+        "    .then(function(r){\n"
+        "      return r.json().catch(function(){ return { success: false, error: 'Server returned HTTP ' + r.status }; });\n"
+        "    })\n"
         "    .then(function(d){\n"
         "      btn.disabled = false;\n"
         "      btn.innerText = 'Sign In \\u2192';\n"
@@ -1645,92 +1852,81 @@ void WebPortal::handleLoginPage() {
         "        err.innerText = d.error || 'Invalid credentials.';\n"
         "      }\n"
         "    })\n"
-        "    .catch(function(){\n"
+        "    .catch(function(errObj){\n"
         "      btn.disabled = false;\n"
         "      btn.innerText = 'Sign In \\u2192';\n"
         "      err.style.display = 'block';\n"
-        "      err.innerText = 'Connection error. Please retry.';\n"
+        "      err.innerText = 'Connection error: ' + (errObj.message || 'Please retry.');\n"
         "    });\n"
         "  return false;\n"
         "}\n"
     ));
-    _server.sendContent_P(PSTR("</script></head><body>"
-                               "<div class=\"login-wrap\"><div class=\"login-card\">"
-                               "<div class=\"top-accent\"></div><div class=\"login-body\">"
-                               "<div style=\"text-align:center;margin-bottom:20px;\">"));
-    _server.sendContent_P(OOBM_LOGO_SVG);
-    _server.sendContent_P(PSTR("<div style=\"font-size:0.82rem;color:var(--muted);margin-top:6px;font-weight:500;\">"
-                               "Wireless Out-of-Band Management Dongle</div></div>"
-                               "<div id=\"login_err\" style=\"display:none;margin-bottom:16px;padding:8px 12px;border-radius:6px;background:#fee2e2;color:#b91c1c;font-size:0.84rem;font-weight:600;border:1px solid #fca5a5;\"></div>"
-                               "<form onsubmit=\"return doLogin(event);\">"
-                               "<div class=\"form-group\" style=\"margin-bottom:14px;\">"
-                               "  <label for=\"usr\">Username</label>"
-                               "  <input type=\"text\" id=\"usr\" class=\"form-control\" placeholder=\"admin\" value=\"admin\" autofocus autocomplete=\"username\" required>"
-                               "</div>"
-                               "<div class=\"form-group\" style=\"margin-bottom:18px;\">"
-                               "  <label for=\"pwd\">Password</label>"
-                               "  <div class=\"pwd-wrap\">"
-                               "    <input type=\"password\" id=\"pwd\" class=\"form-control\" placeholder=\"••••••••\" autocomplete=\"current-password\" required>"
-                               "    <button type=\"button\" class=\"pwd-toggle\" onclick=\"togglePassword(this)\" title=\"Toggle password visibility\" tabindex=\"-1\">"
-                               "      <svg class=\"eye-open\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>"
-                               "      <svg class=\"eye-closed\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"display:none;\"><path d=\"M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24\"/><line x1=\"1\" y1=\"1\" x2=\"23\" y2=\"23\"/></svg>"
-                               "    </button>"
-                               "  </div>"
-                               "</div>"
-                               "<button type=\"submit\" id=\"btn_submit\" class=\"btn btn-primary\" style=\"width:100%;justify-content:center;padding:10px 16px;\">"
-                               "  Sign In &rarr;"
-                               "</button>"
-                               "</form>"
-                               "<div style=\"margin-top:22px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:14px;\">"
-                               "  <span style=\"font-size:0.75rem;color:var(--muted);\">v" FIRMWARE_VERSION "</span>"
-                               "  <div class=\"theme-switch\">"
-                               "    <button id=\"themeBtnLight\" class=\"theme-btn\" onclick=\"setTheme('light')\" title=\"Light Theme\">"
-                               "      <svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41\"/></svg>"
-                               "    </button>"
-                               "    <button id=\"themeBtnDark\" class=\"theme-btn\" onclick=\"setTheme('dark')\" title=\"Dark Theme\">"
-                               "      <svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z\"/></svg>"
-                               "    </button>"
-                               "    <button id=\"themeBtnSystem\" class=\"theme-btn\" onclick=\"setTheme('system')\" title=\"System Theme\">"
-                               "      <svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"3\" width=\"20\" height=\"14\" rx=\"2\"/><line x1=\"8\" y1=\"21\" x2=\"16\" y2=\"21\"/><line x1=\"12\" y1=\"17\" x2=\"12\" y2=\"21\"/></svg>"
-                               "    </button>"
-                               "  </div>"
-                               "</div>"
-                               "</div></div></div></body></html>"
+    res.sendChunk_P(PSTR("</script></head><body>"
+                         "<div class=\"login-wrap\"><div class=\"login-card\">"
+                         "<div class=\"top-accent\"></div><div class=\"login-body\">"
+                         "<div style=\"text-align:center;margin-bottom:20px;\">"));
+    res.sendChunk_P(OOBM_LOGO_SVG);
+    res.sendChunk_P(PSTR("<div style=\"font-size:0.82rem;color:var(--muted);margin-top:6px;font-weight:500;\">"
+                         "Wireless Out-of-Band Management Dongle</div></div>"
+                         "<div id=\"login_err\" style=\"display:none;margin-bottom:16px;padding:8px 12px;border-radius:6px;background:#fee2e2;color:#b91c1c;font-size:0.84rem;font-weight:600;border:1px solid #fca5a5;\"></div>"
+                         "<form onsubmit=\"return doLogin(event);\">"
+                         "<div class=\"form-group\" style=\"margin-bottom:14px;\">"
+                         "  <label for=\"usr\">Username</label>"
+                         "  <input type=\"text\" id=\"usr\" class=\"form-control\" placeholder=\"admin\" value=\"admin\" autofocus autocomplete=\"username\" required>"
+                         "</div>"
+                         "<div class=\"form-group\" style=\"margin-bottom:18px;\">"
+                         "  <label for=\"pwd\">Password</label>"
+                         "  <div class=\"pwd-wrap\">"
+                         "    <input type=\"password\" id=\"pwd\" class=\"form-control\" placeholder=\"••••••••\" autocomplete=\"current-password\" required>"
+                         "    <button type=\"button\" class=\"pwd-toggle\" onclick=\"togglePassword(this)\" title=\"Toggle password visibility\" tabindex=\"-1\">"
+                         "      <svg class=\"eye-open\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>"
+                         "      <svg class=\"eye-closed\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"display:none;\"><path d=\"M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24\"/><line x1=\"1\" y1=\"1\" x2=\"23\" y2=\"23\"/></svg>"
+                         "    </button>"
+                         "  </div>"
+                         "</div>"
+                         "<button type=\"submit\" id=\"btn_submit\" class=\"btn btn-primary\" style=\"width:100%;justify-content:center;padding:10px 16px;\">"
+                         "  Sign In &rarr;"
+                         "</button>"
+                         "</form>"
+                         "<div style=\"margin-top:22px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:14px;\">"
+                         "  <span style=\"font-size:0.75rem;color:var(--muted);\">v" FIRMWARE_VERSION "</span>"
+                         "  <div class=\"theme-switch\">"
+                         "    <button id=\"themeBtnLight\" class=\"theme-btn\" onclick=\"setTheme('light')\" title=\"Light Theme\">"
+                         "      <svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41\"/></svg>"
+                         "    </button>"
+                         "    <button id=\"themeBtnDark\" class=\"theme-btn\" onclick=\"setTheme('dark')\" title=\"Dark Theme\">"
+                         "      <svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z\"/></svg>"
+                         "    </button>"
+                         "    <button id=\"themeBtnSystem\" class=\"theme-btn\" onclick=\"setTheme('system')\" title=\"System Theme\">"
+                         "      <svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"3\" width=\"20\" height=\"14\" rx=\"2\"/><line x1=\"8\" y1=\"21\" x2=\"16\" y2=\"21\"/><line x1=\"12\" y1=\"17\" x2=\"12\" y2=\"21\"/></svg>"
+                         "    </button>"
+                         "  </div>"
+                         "</div>"
+                         "</div></div></div></body></html>"
     ));
-    _server.sendContent("");
+    res.end();
 }
 
-void WebPortal::handleApiLogin() {
-    String u = _server.hasArg("usr") ? _server.arg("usr") : (_server.hasArg("user") ? _server.arg("user") : "");
-    String p = _server.hasArg("pwd") ? _server.arg("pwd") : (_server.hasArg("pass") ? _server.arg("pass") : "");
-
+// =============================================================================
+// Unified AJAX Endpoints
+// =============================================================================
+void WebPortal::handleApiLogin(ResponseWriter &res, const String &u, const String &p) {
     if (u == _authUser && p == _authPass) {
         String setCookie = "oobm_session=" + _sessionToken + "; Path=/; Max-Age=86400; SameSite=Lax";
-        _server.sendHeader("Set-Cookie", setCookie);
+        res.setHeader("Set-Cookie", setCookie.c_str());
+        res.setContentType("application/json");
         logger.logInfo("Web user '%s' logged in successfully.", _authUser);
-        _server.send(200, "application/json", "{\"success\":true,\"token\":\"" + _sessionToken + "\"}");
+        res.sendChunk("{\"success\":true,\"token\":\"" + _sessionToken + "\"}");
     } else {
         logger.logWarn("Failed web login attempt with username '%s'.", u.c_str());
-        _server.send(401, "application/json", "{\"success\":false,\"error\":\"Invalid username or password\"}");
+        res.setStatus(401, "401 Unauthorized");
+        res.setContentType("application/json");
+        res.sendChunk("{\"success\":false,\"error\":\"Invalid username or password\"}");
     }
+    res.end();
 }
 
-void WebPortal::handleLogout() {
-    _server.sendHeader("Set-Cookie", "oobm_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT");
-    _server.sendHeader("Location", "/");
-    _server.send(302, "text/plain", "");
-    logger.logInfo("User logged out.");
-}
-
-// =============================================================================
-// AJAX Endpoints
-// =============================================================================
-void WebPortal::handleApiStatus() {
-    if (!isAuthenticated()) {
-        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-        return;
-    }
-
+void WebPortal::handleApiStatus(ResponseWriter &res) {
     SystemStatsData stats;
     SystemStats::update(stats);
 
@@ -1742,14 +1938,13 @@ void WebPortal::handleApiStatus() {
     SystemStats::formatBytes(stats.serialTxBytes, txBuf, sizeof(txBuf));
 
     bool is24h = _prefs.getBool(NVS_KEY_TIME_FORMAT_24H, true);
-
     if (stats.currentTime > 1577836800) {
-        struct tm timeinfo;
-        localtime_r(&stats.currentTime, &timeinfo);
+        struct tm ti;
+        localtime_r(&stats.currentTime, &ti);
         if (is24h) {
-            strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M", &timeinfo);
+            strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M", &ti);
         } else {
-            strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %I:%M %p", &timeinfo);
+            strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %I:%M %p", &ti);
         }
     } else {
         snprintf(timeBuf, sizeof(timeBuf), "--:--");
@@ -1768,21 +1963,22 @@ void WebPortal::handleApiStatus() {
     }
 
     char framing[8];
-    snprintf(framing, sizeof(framing), "%u%c%u", 
+    snprintf(framing, sizeof(framing), "%u%c%u",
              serialBridge.getDataBits(),
              (serialBridge.getParity() == 1 ? 'O' : (serialBridge.getParity() == 2 ? 'E' : 'N')),
              serialBridge.getStopBits());
 
-    char json[1400];
+    char json[1500];
     snprintf(json, sizeof(json),
-             "{\"uptime_sec\":%u,\"uptime_str\":\"%s\",\"cpu_freq\":%u,\"free_heap\":%u,\"free_heap_str\":\"%s\","
+             "{\"uptime_sec\":%u,\"uptime_str\":\"%s\",\"cpu_freq\":%u,\"cpu_load\":%.1f,\"temp_c\":%.1f,\"free_heap\":%u,\"free_heap_str\":\"%s\","
              "\"min_free_heap\":%u,\"min_heap_str\":\"%s\",\"heap_frag\":%u,\"baud\":%u,\"framing\":\"%s\","
              "\"rx_bytes\":%u,\"rx_bytes_str\":\"%s\",\"tx_bytes\":%u,\"tx_bytes_str\":\"%s\",\"rx_overflow\":%u,"
              "\"active_ws\":%u,\"active_telnet\":%u,"
              "\"net_mode\":\"%s\",\"ip\":\"%s\",\"ssid\":\"%s\",\"mac\":\"%s\","
              "\"rssi\":%d,\"ap_clients\":%u,\"ntp_synced\":%s,\"time_str\":\"%s\",\"last_ntp_str\":\"%s\","
              "\"tz_city\":\"%s\",\"ntp_server\":\"%s\"}",
-             stats.uptimeSeconds, uptimeBuf, stats.cpuFreqMhz, stats.freeHeapBytes, heapBuf,
+             stats.uptimeSeconds, uptimeBuf, stats.cpuFreqMhz, stats.cpuLoadPercent, stats.temperatureCelsius,
+             stats.freeHeapBytes, heapBuf,
              stats.minFreeHeapBytes, minHeapBuf, stats.heapFragPercent, stats.baudRate, framing,
              stats.serialRxBytes, rxBuf, stats.serialTxBytes, txBuf, stats.serialRxOverflow,
              stats.activeWsClients, stats.activeTelnetClients,
@@ -1792,54 +1988,54 @@ void WebPortal::handleApiStatus() {
              _prefs.getString(NVS_KEY_NTP_TZ_CITY, DEFAULT_TZ_CITY).c_str(),
              _prefs.getString(NVS_KEY_NTP_SERVER, NTP_DEFAULT_SERVER).c_str());
 
-    _server.send(200, "application/json", json);
+    res.setContentType("application/json");
+    res.sendChunk(json);
+    res.end();
 }
 
-void WebPortal::handleApiScan() {
-    if (!isAuthenticated()) {
-        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-        return;
-    }
-
+void WebPortal::handleApiScan(ResponseWriter &res) {
     int16_t scanStatus = WiFi.scanComplete();
 
     if (scanStatus == WIFI_SCAN_RUNNING) {
-        _server.send(200, "application/json", "{\"status\":\"scanning\",\"networks\":[]}");
+        res.setContentType("application/json");
+        res.sendChunk("{\"status\":\"scanning\",\"networks\":[]}");
+        res.end();
         return;
     }
 
     if (scanStatus >= 0) {
-        String json = "{\"status\":\"ready\",\"networks\":[";
+        res.setContentType("application/json");
+        res.sendChunk("{\"status\":\"ready\",\"networks\":[");
+        char itemBuf[160];
         for (int i = 0; i < scanStatus; ++i) {
-            if (i > 0) json += ",";
+            if (i > 0) res.sendChunk(",");
             String ssid = WiFi.SSID(i);
             ssid.replace("\\", "\\\\");
             ssid.replace("\"", "\\\"");
-            json += "{\"ssid\":\"" + ssid + "\",\"rssi\":" + String(WiFi.RSSI(i)) + ",\"secure\":" + String(WiFi.encryptionType(i) != WIFI_AUTH_OPEN ? "true" : "false") + "}";
+            snprintf(itemBuf, sizeof(itemBuf), "{\"ssid\":\"%s\",\"rssi\":%d,\"secure\":%s}",
+                     ssid.c_str(), WiFi.RSSI(i),
+                     (WiFi.encryptionType(i) != WIFI_AUTH_OPEN) ? "true" : "false");
+            res.sendChunk(itemBuf);
         }
-        json += "]}";
+        res.sendChunk("]}");
         WiFi.scanDelete();
-        _server.send(200, "application/json", json);
+        res.end();
         return;
     }
 
-    // scanStatus == WIFI_SCAN_FAILED: Start a fast async scan (150ms dwell time per channel)
     WiFi.scanNetworks(true, false, false, 150);
-    _server.send(200, "application/json", "{\"status\":\"scanning\",\"networks\":[]}");
+    res.setContentType("application/json");
+    res.sendChunk("{\"status\":\"scanning\",\"networks\":[]}");
+    res.end();
 }
 
-void WebPortal::handleApiLogs() {
-    if (!isAuthenticated()) {
-        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-        return;
-    }
-
-    String json = "[";
+void WebPortal::handleApiLogs(ResponseWriter &res) {
+    res.setContentType("application/json");
+    res.sendChunk("[");
     size_t count = logger.getCount();
+    char buf[192];
     for (size_t i = 0; i < count; i++) {
         const LogEntry &e = logger.getEntry(i);
-        if (i > 0) json += ",";
-        
         char timeBuf[32];
         if (e.timestamp > 1577836800) {
             time_t t = (time_t)e.timestamp;
@@ -1850,60 +2046,57 @@ void WebPortal::handleApiLogs() {
             snprintf(timeBuf, sizeof(timeBuf), "+%us", e.timestamp);
         }
 
-        json += "{\"time\":\"" + String(timeBuf) + "\",\"lvl\":" + String((int)e.level) + ",\"msg\":\"" + String(e.msg) + "\"}";
+        snprintf(buf, sizeof(buf), "%s{\"time\":\"%s\",\"lvl\":%u,\"msg\":\"%s\"}",
+                 (i > 0 ? "," : ""), timeBuf, (unsigned)e.level, e.msg);
+        res.sendChunk(buf);
     }
-    json += "]";
-    _server.send(200, "application/json", json);
+    res.sendChunk("]");
+    res.end();
 }
 
-void WebPortal::handleApiSaveSettings() {
-    if (!isAuthenticated()) {
-        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-        return;
+void WebPortal::handleApiSaveSettings(ResponseWriter &res, const String &body) {
+    String devHost = extractFormArg(body, "dev_host");
+    if (devHost.length() > 0) {
+        _prefs.putString(NVS_KEY_HOSTNAME, devHost);
+        mndpDiscovery.setHostname(devHost.c_str());
     }
 
-    // Device Hostname & Static IP
-    if (_server.hasArg("dev_host")) {
-        String h = _server.arg("dev_host");
-        if (h.length() > 0) {
-            _prefs.putString(NVS_KEY_HOSTNAME, h);
-            mndpDiscovery.setHostname(h.c_str());
-        }
-    }
-
-    bool isStatic = _server.hasArg("ip_static");
+    bool isStatic = (extractFormArg(body, "ip_static") == "1");
     _prefs.putBool(NVS_KEY_WIFI_DHCP, !isStatic);
-    if (_server.hasArg("ip_addr")) _prefs.putString(NVS_KEY_WIFI_IP, _server.arg("ip_addr"));
-    if (_server.hasArg("ip_mask")) _prefs.putString(NVS_KEY_WIFI_SN, _server.arg("ip_mask"));
-    if (_server.hasArg("ip_gw"))   _prefs.putString(NVS_KEY_WIFI_GW, _server.arg("ip_gw"));
-    if (_server.hasArg("ip_dns"))  _prefs.putString(NVS_KEY_WIFI_DNS, _server.arg("ip_dns"));
+    String ipAddr = extractFormArg(body, "ip_addr"); if (ipAddr.length() > 0) _prefs.putString(NVS_KEY_WIFI_IP, ipAddr);
+    String ipMask = extractFormArg(body, "ip_mask"); if (ipMask.length() > 0) _prefs.putString(NVS_KEY_WIFI_SN, ipMask);
+    String ipGw   = extractFormArg(body, "ip_gw");   if (ipGw.length() > 0)   _prefs.putString(NVS_KEY_WIFI_GW, ipGw);
+    String ipDns  = extractFormArg(body, "ip_dns");  if (ipDns.length() > 0)  _prefs.putString(NVS_KEY_WIFI_DNS, ipDns);
 
-    // NTP Time settings
-    bool ntpEn = _server.hasArg("ntp_en");
+
+    bool ntpEn = (extractFormArg(body, "ntp_en") == "1");
     _prefs.putBool(NVS_KEY_NTP_ENABLED, ntpEn);
-    if (_server.hasArg("ntp_srv")) _prefs.putString(NVS_KEY_NTP_SERVER, _server.arg("ntp_srv"));
+    String ntpSrv = extractFormArg(body, "ntp_srv");
+    if (ntpSrv.length() > 0) _prefs.putString(NVS_KEY_NTP_SERVER, ntpSrv);
 
-    if (_server.hasArg("tz_idx")) {
-        int idx = _server.arg("tz_idx").toInt();
+    String tzIdxStr = extractFormArg(body, "tz_idx");
+    if (tzIdxStr.length() > 0) {
+        int idx = tzIdxStr.toInt();
         if (idx >= 0 && idx < (int)TIMEZONE_COUNT) {
             _prefs.putString(NVS_KEY_NTP_TZ_POSIX, TIMEZONE_LIST[idx].posix);
             _prefs.putString(NVS_KEY_NTP_TZ_CITY, TIMEZONE_LIST[idx].city);
         }
     }
-    if (_server.hasArg("time_fmt")) {
-        _prefs.putBool(NVS_KEY_TIME_FORMAT_24H, _server.arg("time_fmt") == "24");
+    String timeFmt = extractFormArg(body, "time_fmt");
+    if (timeFmt.length() > 0) {
+        _prefs.putBool(NVS_KEY_TIME_FORMAT_24H, timeFmt == "24");
     }
 
     triggerNtpSync();
 
-    // Serial settings
-    if (_server.hasArg("ser_baud")) {
-        uint32_t baud = _server.arg("ser_baud").toInt();
-        uint8_t dbits = _server.hasArg("ser_dbits") ? (uint8_t)_server.arg("ser_dbits").toInt() : 8;
-        uint8_t parity = _server.hasArg("ser_parity") ? (uint8_t)_server.arg("ser_parity").toInt() : 0;
-        uint8_t sbits = _server.hasArg("ser_sbits") ? (uint8_t)_server.arg("ser_sbits").toInt() : 1;
-        bool echo = _server.hasArg("ser_echo");
-        bool banner = _server.hasArg("ser_banner");
+    String baudStr = extractFormArg(body, "ser_baud");
+    if (baudStr.length() > 0) {
+        uint32_t baud = baudStr.toInt();
+        uint8_t dbits = extractFormArg(body, "ser_dbits").toInt(); if (dbits == 0) dbits = 8;
+        uint8_t parity = extractFormArg(body, "ser_parity").toInt();
+        uint8_t sbits = extractFormArg(body, "ser_sbits").toInt(); if (sbits == 0) sbits = 1;
+        bool echo = (extractFormArg(body, "ser_echo") == "1");
+        bool banner = (extractFormArg(body, "ser_banner") == "1");
 
         _prefs.putUInt(NVS_KEY_SER_BAUD, baud);
         _prefs.putUChar(NVS_KEY_SER_DBITS, dbits);
@@ -1917,12 +2110,12 @@ void WebPortal::handleApiSaveSettings() {
         serialBridge.setGreetingBanner(banner);
     }
 
-    // Telnet settings
-    if (_server.hasArg("tel_port")) {
-        bool telEn = _server.hasArg("tel_en");
-        uint16_t telPort = (uint16_t)_server.arg("tel_port").toInt();
-        bool telAuth = _server.hasArg("tel_auth");
-        String telPass = _server.arg("tel_pass");
+    String telPortStr = extractFormArg(body, "tel_port");
+    if (telPortStr.length() > 0) {
+        bool telEn = (extractFormArg(body, "tel_en") == "1");
+        uint16_t telPort = (uint16_t)telPortStr.toInt();
+        bool telAuth = (extractFormArg(body, "tel_auth") == "1");
+        String telPass = extractFormArg(body, "tel_pass");
 
         _prefs.putBool(NVS_KEY_TELNET_EN, telEn);
         _prefs.putUShort(NVS_KEY_TELNET_PORT, telPort);
@@ -1934,137 +2127,78 @@ void WebPortal::handleApiSaveSettings() {
         telnetServer.setAuth(telAuth, telPass.length() > 0 ? telPass.c_str() : nullptr);
     }
 
-    // Security settings
-    if (_server.hasArg("auth_usr")) {
-        bool authEn = _server.hasArg("auth_en");
-        String u = _server.arg("auth_usr");
-        String p = _server.arg("auth_pwd");
+    String authUsr = extractFormArg(body, "auth_usr");
+    if (authUsr.length() > 0) {
+        bool authEn = (extractFormArg(body, "auth_en") == "1");
+        String authPwd = extractFormArg(body, "auth_pwd");
 
         _prefs.putBool(NVS_KEY_AUTH_EN, authEn);
-        if (u.length() > 0) _prefs.putString(NVS_KEY_AUTH_USER, u);
-        if (p.length() > 0) _prefs.putString(NVS_KEY_AUTH_PASS, p);
+        _prefs.putString(NVS_KEY_AUTH_USER, authUsr);
+        if (authPwd.length() > 0) _prefs.putString(NVS_KEY_AUTH_PASS, authPwd);
 
-        setAuthCredentials(authEn, u.length() > 0 ? u.c_str() : _authUser, p.length() > 0 ? p.c_str() : _authPass);
-        webTerminal.setAuth(authEn, u.length() > 0 ? u.c_str() : _authUser, p.length() > 0 ? p.c_str() : _authPass);
+        setAuthCredentials(authEn, authUsr.c_str(), authPwd.length() > 0 ? authPwd.c_str() : _authPass);
+        webTerminal.setAuth(authEn, authUsr.c_str(), authPwd.length() > 0 ? authPwd.c_str() : _authPass);
     }
 
-    logger.logInfo("Settings saved successfully.");
-    _server.send(200, "application/json", "{\"success\":true}");
+    logger.logInfo("Settings updated successfully.");
+    res.setContentType("application/json");
+    res.sendChunk("{\"success\":true}");
+    res.end();
 }
 
-void WebPortal::handleApiSaveWifi() {
-    if (!isAuthenticated()) {
-        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-        return;
-    }
-
-    if (_server.hasArg("sta_ssid")) {
-        String staSsid = _server.arg("sta_ssid");
-        staSsid.trim();
+void WebPortal::handleApiSaveWifi(ResponseWriter &res, const String &body) {
+    String staSsid = extractFormArg(body, "sta_ssid");
+    if (staSsid.length() > 0) {
         _prefs.putString(NVS_KEY_WIFI_SSID, staSsid);
-        if (_server.hasArg("sta_pass")) {
-            String staPass = _server.arg("sta_pass");
-            if (staPass.length() > 0) {
-                _prefs.putString(NVS_KEY_WIFI_PASS, staPass);
-            }
-        }
-    }
-    if (_server.hasArg("ap_ssid")) {
-        String apSsid = _server.arg("ap_ssid");
-        apSsid.trim();
-        if (apSsid.length() > 0) {
-            _prefs.putString(NVS_KEY_AP_SSID, apSsid);
-        }
-        if (_server.hasArg("ap_pass")) {
-            String apPass = _server.arg("ap_pass");
-            if (apPass.length() >= 8) {
-                _prefs.putString(NVS_KEY_AP_PASS, apPass);
-            }
-        }
-        if (_server.hasArg("ap_chan")) {
-            _prefs.putUChar(NVS_KEY_AP_CHAN, (uint8_t)_server.arg("ap_chan").toInt());
-        }
-        _prefs.putBool(NVS_KEY_AP_HIDDEN, _server.hasArg("ap_hidden"));
-        _prefs.putBool(NVS_KEY_AP_CAPTIVE, _server.hasArg("ap_captive"));
-        _prefs.putBool(NVS_KEY_MNDP_EN, _server.hasArg("mndp_en"));
+        String staPass = extractFormArg(body, "sta_pass");
+        if (staPass.length() > 0) _prefs.putString(NVS_KEY_WIFI_PASS, staPass);
     }
 
-    logger.logInfo("Wi-Fi configuration updated. Restarting ESP32 to apply network settings...");
-    _server.send(200, "application/json", "{\"success\":true,\"reboot\":true}");
+    String apSsid = extractFormArg(body, "ap_ssid");
+    if (apSsid.length() > 0) _prefs.putString(NVS_KEY_AP_SSID, apSsid);
+    String apPass = extractFormArg(body, "ap_pass");
+    if (apPass.length() >= 8) _prefs.putString(NVS_KEY_AP_PASS, apPass);
+    String apChan = extractFormArg(body, "ap_chan");
+    if (apChan.length() > 0) _prefs.putUChar(NVS_KEY_AP_CHAN, (uint8_t)apChan.toInt());
+
+    _prefs.putBool(NVS_KEY_AP_HIDDEN, extractFormArg(body, "ap_hidden") == "1");
+    _prefs.putBool(NVS_KEY_AP_CAPTIVE, extractFormArg(body, "ap_captive") == "1");
+    _prefs.putBool(NVS_KEY_MNDP_EN, extractFormArg(body, "mndp_en") == "1");
+
+    logger.logInfo("Wi-Fi configuration saved. Rebooting ESP32 to apply network changes...");
+    res.setContentType("application/json");
+    res.sendChunk("{\"success\":true,\"reboot\":true}");
+    res.end();
     delay(800);
     ESP.restart();
 }
 
-void WebPortal::handleApiRestart() {
-    if (!isAuthenticated()) {
-        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-        return;
-    }
+void WebPortal::handleApiRestart(ResponseWriter &res) {
     logger.logWarn("Reboot triggered via Web API.");
-    _server.send(200, "application/json", "{\"rebooting\":true}");
+    res.setContentType("application/json");
+    res.sendChunk("{\"rebooting\":true}");
+    res.end();
     delay(500);
     ESP.restart();
 }
 
-void WebPortal::handleApiFactoryReset() {
-    if (!isAuthenticated()) {
-        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-        return;
-    }
+void WebPortal::handleApiFactoryReset(ResponseWriter &res) {
     logger.logWarn("Factory Reset triggered via Web API.");
     _prefs.clear();
-    _server.send(200, "application/json", "{\"reset\":true}");
+    res.setContentType("application/json");
+    res.sendChunk("{\"reset\":true}");
+    res.end();
     delay(500);
     ESP.restart();
 }
 
-void WebPortal::handleApiPlatform() {
-    if (!isAuthenticated()) {
-        _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-        return;
+void WebPortal::handleApiPlatform(ResponseWriter &res, const String &platform) {
+    if (platform.length() > 0) {
+        _prefs.putString(NVS_KEY_CLI_PLATFORM, platform);
     }
-    if (_server.hasArg("p")) {
-        _prefs.putString(NVS_KEY_CLI_PLATFORM, _server.arg("p"));
-    }
-    _server.send(200, "application/json", "{\"success\":true}");
-}
-
-// =============================================================================
-// OTA Firmware Upload Handlers
-// =============================================================================
-void WebPortal::handleUpdateUpload() {
-    HTTPUpload &upload = _server.upload();
-    if (upload.status == UPLOAD_FILE_START) {
-        logger.logInfo("OTA Upload started: %s", upload.filename.c_str());
-        if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
-            Update.printError(Serial);
-        }
-    } else if (upload.status == UPLOAD_FILE_WRITE) {
-        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
-            Update.printError(Serial);
-        }
-    } else if (upload.status == UPLOAD_FILE_END) {
-        if (Update.end(true)) {
-            logger.logInfo("OTA Upload successful (%u bytes). Rebooting...", upload.totalSize);
-        } else {
-            Update.printError(Serial);
-            logger.logError("OTA Update verification failed.");
-        }
-    }
-}
-
-void WebPortal::handleUpdateFinish() {
-    if (!isAuthenticated()) {
-        _server.send(401, "text/plain", "Unauthorized");
-        return;
-    }
-    if (Update.hasError()) {
-        _server.send(500, "text/plain", "Update Failed");
-    } else {
-        _server.send(200, "text/plain", "OK");
-        delay(500);
-        ESP.restart();
-    }
+    res.setContentType("application/json");
+    res.sendChunk("{\"success\":true}");
+    res.end();
 }
 
 // =============================================================================
@@ -2080,7 +2214,6 @@ void WebPortal::handleNotFound() {
     if ((WiFi.getMode() & WIFI_MODE_AP) && _captiveEnabled) {
         String host = _server.hostHeader();
         String apIp = WiFi.softAPIP().toString();
-        // If Host header is a remote domain probe, redirect to captive portal landing page
         if (host.length() > 0 && !host.startsWith(apIp) && !host.startsWith("esp-oobm")) {
             handleCaptivePortal();
             return;

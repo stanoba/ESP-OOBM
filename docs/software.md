@@ -56,6 +56,8 @@ All firmware source code is located in the [`software/`](../software/) directory
 | **MndpDiscovery** | [`MndpDiscovery.h`](../software/include/MndpDiscovery.h) | [`MndpDiscovery.cpp`](../software/src/MndpDiscovery.cpp) | Broadcasts MikroTik Neighbor Discovery Protocol (MNDP) UDP packets every 60s for automatic device discovery in MikroTik Winbox. |
 | **ConsoleLogger** | [`ConsoleLogger.h`](../software/include/ConsoleLogger.h) | [`ConsoleLogger.cpp`](../software/src/ConsoleLogger.cpp) | In-memory circular log buffer holding the last 100 system events with ISO 8601 timestamps and severity levels (INFO, WARN, ERROR). |
 | **SystemStats** | [`SystemStats.h`](../software/include/SystemStats.h) | [`SystemStats.cpp`](../software/src/SystemStats.cpp) | Calculates real-time CPU load estimations, heap fragmentation index, minimum free heap, uptime, and Wi-Fi signal quality. |
+| **VectorGraphics** | [`VectorGraphics.h`](../software/include/VectorGraphics.h) | Header-only (PROGMEM) | Statically stored pure SVG vector paths (Logo, Favicon) with zero dynamic RAM allocation and 100% offline AP-mode readiness. |
+| **WebUtils** | [`WebUtils.h`](../software/include/WebUtils.h) | Header-only (inline) | Hardware-independent URL decoding and form/JSON/multipart argument parsing used by WebPortal; covered by native unit tests. |
 
 ---
 
@@ -66,11 +68,11 @@ The ESP32-PICO-D4 includes 4 MB (4096 KB) embedded SPI flash. The partitioning s
 ```
 # ESP32 Custom 4MB Partition Table with Dual OTA
 # Name,   Type, SubType,  Offset,    Size,     Flags
-nvs,      data, nvs,      0x9000,    0x5000,   
-otadata,  data, ota,      0xe000,    0x2000,   
-app0,     app,  ota_0,    0x10000,   0x1E0000, 
-app1,     app,  ota_1,    0x1F0000,  0x1E0000, 
-spiffs,   data, spiffs,   0x3D0000,  0x30000,  
+nvs,      data, nvs,      0x9000,    0x5000,
+otadata,  data, ota,      0xe000,    0x2000,
+app0,     app,  ota_0,    0x10000,   0x1E0000,
+app1,     app,  ota_1,    0x1F0000,  0x1E0000,
+coredump, data, coredump, 0x3D0000,  0x30000,
 ```
 
 ### Partition Map Breakdown
@@ -81,7 +83,7 @@ spiffs,   data, spiffs,   0x3D0000,  0x30000,
 | **`otadata`** | `0x00E000` | 8 KB | OTA boot selector tracking active vs. pending update partitions |
 | **`app0`** | `0x010000` | 1920 KB | Primary firmware slot (Active / Rollback) |
 | **`app1`** | `0x1F0000` | 1920 KB | Secondary firmware slot (Seamless OTA target) |
-| **`spiffs`** | `0x3D0000` | 192 KB | Static storage / SPIFFS filesystem |
+| **`coredump`** | `0x3D0000` | 192 KB | ESP-IDF crash dump storage |
 
 ---
 

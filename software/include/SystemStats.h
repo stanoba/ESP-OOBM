@@ -5,6 +5,10 @@
 struct SystemStatsData {
     uint32_t uptimeSeconds;
     uint32_t cpuFreqMhz;
+    float    cpuLoadPercent;
+    float    temperatureCelsius;
+    uint8_t  resetReasonCode;
+    char     resetReasonStr[24];
     uint32_t freeHeapBytes;
     uint32_t minFreeHeapBytes;
     uint32_t maxAllocHeapBytes;
@@ -32,6 +36,7 @@ struct SystemStatsData {
 class SystemStats {
 public:
     static void update(SystemStatsData &stats);
+    static void recordLoopActivity(uint32_t busyMicros);
     static void formatUptime(uint32_t totalSec, char *buf, size_t bufSize);
     static void formatBytes(uint32_t bytes, char *buf, size_t bufSize);
 };

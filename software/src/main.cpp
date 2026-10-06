@@ -6,6 +6,9 @@
 #include <ESPmDNS.h>
 #include <ArduinoOTA.h>
 #include <esp_sntp.h>
+#include <esp_log.h>
+#include <stdarg.h>
+#include <stdio.h>
 
 #include "Config.h"
 #include "ConsoleLogger.h"
@@ -31,6 +34,35 @@ static uint32_t s_lastLedBlinkMillis = 0;
 static bool     s_ledState = false;
 static uint32_t s_lastNtpSyncTrigger = 0;
 static bool     s_staWasConnected = false;
+
+// UART0 is also the serial bridge to the managed device (GPIO1/3). Keep
+// ESP-IDF diagnostics out of that byte stream and retain warnings/errors in
+// the dashboard's System Event Log instead.
+static int captureEspIdfLog(const char *format, va_list args) {
+    char line[128];
+    int length = vsnprintf(line, sizeof(line), format, args);
+    if (length > 0) {
+        // ESP-IDF's formatted log text already ends in a newline. Store a
+        // single-line message because the event-log renderers add separators.
+        size_t lineLength = strlen(line);
+        while (lineLength > 0 &&
+               (line[lineLength - 1] == '\r' || line[lineLength - 1] == '\n')) {
+            line[--lineLength] = '\0';
+        }
+
+        const char *severity = line;
+        while (*severity == '\033') {
+            while (*severity && *severity != 'm') ++severity;
+            if (*severity) ++severity;
+        }
+        if (*severity == 'E') {
+            logger.logError("%s", line);
+        } else if (*severity == 'W') {
+            logger.logWarn("%s", line);
+        }
+    }
+    return length;
+}
 
 // =============================================================================
 // SNTP Notification Callback & Trigger Helper
@@ -163,6 +195,11 @@ void setup() {
     pinMode(PIN_LED_STATUS, OUTPUT);
     digitalWrite(PIN_LED_STATUS, !LED_ACTIVE_LEVEL);
 
+    // The default ESP-IDF console is UART0, shared with SerialBridge.
+    // Capture runtime warnings/errors in the event log without injecting
+    // diagnostic text into the managed device's serial session.
+    esp_log_set_vprintf(captureEspIdfLog);
+
     preferences.begin(NVS_NAMESPACE, false);
 
     // Initialize Serial Console Bridge
@@ -198,7 +235,7 @@ void setup() {
     // Initialize MNDP Discovery
     mndpDiscovery.begin(preferences);
 
-    // Initialize Web Portal & HTTP Routes
+    // Initialize HTTP Web Portal Routes
     portal.begin();
 
     logger.logInfo("System ready. Listening for incoming connections.");
@@ -208,6 +245,8 @@ void setup() {
 // Main Loop
 // =============================================================================
 void loop() {
+    uint64_t loopStartUs = esp_timer_get_time();
+
     // 1. Drain Hardware UART into static ring buffer
     serialBridge.loop();
 
@@ -246,5 +285,8 @@ void loop() {
     // 5. Update Status LED
     updateLed();
 
-    yield();
+    uint64_t loopEndUs = esp_timer_get_time();
+    SystemStats::recordLoopActivity((uint32_t)(loopEndUs - loopStartUs));
+
+    delay(1);
 }
