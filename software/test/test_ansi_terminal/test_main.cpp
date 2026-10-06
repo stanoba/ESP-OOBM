@@ -165,6 +165,18 @@ public:
                 else if (v >= 100 && v <= 107) { bg = getAnsiColor(v - 100 + 8); }
                 else if (v == 38 && i + 2 < p.size() && p[i + 1] == 5) { fg = getAnsiColor(p[i + 2]); i += 2; }
                 else if (v == 48 && i + 2 < p.size() && p[i + 1] == 5) { bg = getAnsiColor(p[i + 2]); i += 2; }
+                else if (v == 38 && i + 4 < p.size() && p[i + 1] == 2) {
+                    char buf[64];
+                    snprintf(buf, sizeof(buf), "rgb(%d,%d,%d)", p[i + 2], p[i + 3], p[i + 4]);
+                    fg = buf;
+                    i += 4;
+                }
+                else if (v == 48 && i + 4 < p.size() && p[i + 1] == 2) {
+                    char buf[64];
+                    snprintf(buf, sizeof(buf), "rgb(%d,%d,%d)", p[i + 2], p[i + 3], p[i + 4]);
+                    bg = buf;
+                    i += 4;
+                }
             }
         } else if (cmd == 'K') {
             int m = p.empty() ? 0 : p[0];
@@ -175,6 +187,21 @@ public:
         } else if (cmd == 'J') {
             int m = p.empty() ? 0 : p[0];
             if (m == 2 || m == 3) { lines.clear(); lines.push_back({}); cursorRow = 0; cursorCol = 0; }
+        } else if (cmd == 'A') {
+            int n = p.empty() || p[0] == 0 ? 1 : p[0];
+            cursorRow = std::max(0, cursorRow - n);
+        } else if (cmd == 'B') {
+            int n = p.empty() || p[0] == 0 ? 1 : p[0];
+            cursorRow = std::min((int)lines.size() - 1, cursorRow + n);
+        } else if (cmd == 'C') {
+            int n = p.empty() || p[0] == 0 ? 1 : p[0];
+            cursorCol += n;
+        } else if (cmd == 'D') {
+            int n = p.empty() || p[0] == 0 ? 1 : p[0];
+            cursorCol = std::max(0, cursorCol - n);
+        } else if (cmd == 'G' || cmd == '`') {
+            int col = p.empty() || p[0] == 0 ? 1 : p[0];
+            cursorCol = std::max(0, col - 1);
         } else if (cmd == 'H' || cmd == 'f') {
             int r = p.size() > 0 && p[0] > 0 ? p[0] : 1;
             int c = p.size() > 1 && p[1] > 0 ? p[1] : 1;
@@ -236,7 +263,26 @@ void test_ansi_256_colors(void) {
     TEST_ASSERT_EQUAL('V', term.lines[0][0].ch);
 }
 
-// 4. Cursor Positioning & VT100 Redraw (Fixes Ghosting)
+// 4. 24-bit TrueColor RGB Support
+void test_ansi_truecolor_24bit(void) {
+    AnsiTerminalMock term;
+    term.write("\x1b[38;2;120;60;200mRGB-Text\x1b[0m");
+
+    TEST_ASSERT_EQUAL_STRING("rgb(120,60,200)", term.lines[0][0].fg.c_str());
+    TEST_ASSERT_EQUAL('R', term.lines[0][0].ch);
+}
+
+// 5. Text Styles (Underline, Inverse, Reset)
+void test_ansi_text_styles(void) {
+    AnsiTerminalMock term;
+    term.write("\x1b[4mUnderlined\x1b[24m \x1b[7mInverted\x1b[27m");
+
+    TEST_ASSERT_TRUE(term.lines[0][0].underline);
+    TEST_ASSERT_FALSE(term.lines[0][10].underline); // space
+    TEST_ASSERT_TRUE(term.lines[0][11].inverse);    // 'I'
+}
+
+// 6. Cursor Positioning & VT100 Redraw (Fixes Ghosting)
 void test_ansi_cursor_positioning_and_home(void) {
     AnsiTerminalMock term;
     term.write("Line 1 Old\r\nLine 2 Old");
@@ -249,7 +295,55 @@ void test_ansi_cursor_positioning_and_home(void) {
     TEST_ASSERT_EQUAL('w', term.lines[0][9].ch);
 }
 
-// 5. RouterOS DSR Autonegotiation Probes
+// 7. Relative Cursor Movement (Up, Down, Forward, Backward, Column)
+void test_ansi_cursor_movement_relative(void) {
+    AnsiTerminalMock term;
+    term.write("ABCD\r\nEFGH");
+    TEST_ASSERT_EQUAL(1, term.cursorRow);
+    TEST_ASSERT_EQUAL(4, term.cursorCol);
+
+    // Move Up 1, Backward 2, overwrite
+    term.write("\x1b[1A\x1b[2DX");
+    TEST_ASSERT_EQUAL(0, term.cursorRow);
+    TEST_ASSERT_EQUAL(3, term.cursorCol);
+    TEST_ASSERT_EQUAL('X', term.lines[0][2].ch);
+
+    // Jump directly to column 1
+    term.write("\x1b[1GZ");
+    TEST_ASSERT_EQUAL('Z', term.lines[0][0].ch);
+}
+
+// 8. Line and Screen Clear Sequences (CSI K, CSI J)
+void test_ansi_erase_line_and_screen(void) {
+    AnsiTerminalMock term;
+    term.write("PrefixToDeletePostfix");
+    term.cursorCol = 6;
+    term.write("\x1b[K"); // Erase to end of line from col 6
+    TEST_ASSERT_EQUAL(6, term.lines[0].size());
+
+    // Clear whole screen
+    term.write("\x1b[2J");
+    TEST_ASSERT_EQUAL(1, term.lines.size());
+    TEST_ASSERT_EQUAL(0, term.lines[0].size());
+    TEST_ASSERT_EQUAL(0, term.cursorRow);
+    TEST_ASSERT_EQUAL(0, term.cursorCol);
+}
+
+// 9. Control Characters (\t tab stops, \b backspace, \r\n)
+void test_ansi_control_characters(void) {
+    AnsiTerminalMock term;
+    term.write("A\tB");
+    TEST_ASSERT_EQUAL(9, term.cursorCol);
+    TEST_ASSERT_EQUAL('A', term.lines[0][0].ch);
+    TEST_ASSERT_EQUAL(' ', term.lines[0][1].ch);
+    TEST_ASSERT_EQUAL('B', term.lines[0][8].ch);
+
+    // Backspace
+    term.write("\bC");
+    TEST_ASSERT_EQUAL('C', term.lines[0][8].ch);
+}
+
+// 10. RouterOS DSR Autonegotiation Probes
 void test_routeros_dsr_query_responses(void) {
     AnsiTerminalMock term;
     term.write("Some Router Output");
@@ -276,7 +370,7 @@ void test_routeros_dsr_query_responses(void) {
     TEST_ASSERT_EQUAL_STRING("\x1b[8;24;80t", term.lastWsResponse.c_str());
 }
 
-// 6. Source Code Verification in WebPortal.cpp
+// 11. Source Code Verification in WebPortal.cpp
 void test_webportal_contains_dsr_and_color_handlers(void) {
     std::string code = readWebPortalCode();
     TEST_ASSERT_FALSE(code.empty());
@@ -301,7 +395,12 @@ int main(int argc, char **argv) {
     RUN_TEST(test_ansi_standard_colors);
     RUN_TEST(test_ansi_bold_high_intensity_colors);
     RUN_TEST(test_ansi_256_colors);
+    RUN_TEST(test_ansi_truecolor_24bit);
+    RUN_TEST(test_ansi_text_styles);
     RUN_TEST(test_ansi_cursor_positioning_and_home);
+    RUN_TEST(test_ansi_cursor_movement_relative);
+    RUN_TEST(test_ansi_erase_line_and_screen);
+    RUN_TEST(test_ansi_control_characters);
     RUN_TEST(test_routeros_dsr_query_responses);
     RUN_TEST(test_webportal_contains_dsr_and_color_handlers);
     return UNITY_END();

@@ -6,11 +6,13 @@ The **ESP-OOBM** web interface provides a high-performance, dark/light themed, r
 
 ## UI Screenshots Showcase
 
-### 1. Interactive Serial WebTerminal (Dark Theme)
+### 1. Interactive Serial WebTerminal
 
 Full bi-directional terminal emulator with 16-color ANSI rendering, dedicated macro keys, and RouterOS command quick-actions:
 
-![WebTerminal Dark Theme](../assets/ui-terminal-dark.png)
+| Light Theme | Dark Theme |
+| :---: | :---: |
+| [![WebTerminal Light](../assets/ui-terminal-light.png)](../assets/ui-terminal-light.png) | [![WebTerminal Dark](../assets/ui-terminal-dark.png)](../assets/ui-terminal-dark.png) |
 
 ---
 
@@ -18,17 +20,21 @@ Full bi-directional terminal emulator with 16-color ANSI rendering, dedicated ma
 
 Real-time telemetry showing dual-core 240 MHz CPU status, free heap memory, UART bridge throughput, active sessions, Wi-Fi signal strength, and live rolling event logs:
 
-| Dark Theme | Light Theme |
+| Light Theme | Dark Theme |
 | :---: | :---: |
-| [![Dashboard Dark](../assets/ui-dashboard-dark.png)](../assets/ui-dashboard-dark.png) | [![Dashboard Light](../assets/ui-dashboard-light.png)](../assets/ui-dashboard-light.png) |
+| [![Dashboard Light](../assets/ui-dashboard-light.png)](../assets/ui-dashboard-light.png) | [![Dashboard Dark](../assets/ui-dashboard-dark.png)](../assets/ui-dashboard-dark.png) |
 
 ---
 
 ### 3. Device Settings & Wi-Fi Configuration
 
-| System & Security Settings | Wi-Fi Station & AP Setup |
+| Settings Page (Light) | Wi-Fi Setup (Light) |
 | :---: | :---: |
-| [![Settings Page](../assets/ui-settings-dark.png)](../assets/ui-settings-dark.png) | [![Wi-Fi Setup](../assets/ui-wifi-dark.png)](../assets/ui-wifi-dark.png) |
+| [![Settings Page Light](../assets/ui-settings-light.png)](../assets/ui-settings-light.png) | [![Wi-Fi Setup Light](../assets/ui-wifi-light.png)](../assets/ui-wifi-light.png) |
+
+| Settings Page (Dark) | Wi-Fi Setup (Dark) |
+| :---: | :---: |
+| [![Settings Page Dark](../assets/ui-settings-dark.png)](../assets/ui-settings-dark.png) | [![Wi-Fi Setup Dark](../assets/ui-wifi-dark.png)](../assets/ui-wifi-dark.png) |
 
 ---
 
@@ -36,9 +42,9 @@ Real-time telemetry showing dual-core 240 MHz CPU status, free heap memory, UART
 
 Form-based login dialog with animated focus outlines and theme toggle:
 
-| Dark Theme | Light Theme |
+| Light Theme | Dark Theme |
 | :---: | :---: |
-| [![Login Dark](../assets/ui-login-dark.png)](../assets/ui-login-dark.png) | [![Login Light](../assets/ui-login-light.png)](../assets/ui-login-light.png) |
+| [![Login Light](../assets/ui-login-light.png)](../assets/ui-login-light.png) | [![Login Dark](../assets/ui-login-dark.png)](../assets/ui-login-dark.png) |
 
 ---
 
