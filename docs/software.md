@@ -191,3 +191,9 @@ After a factory reset, the device boots in standalone Access Point mode:
 * **Wi-Fi SSID**: `ESP-OOBM-XXXXXX` (Password: `oobmadm123`)
 * **Web UI URL**: `http://192.168.4.1/` (User: `admin`, Password: `oobmadm123`)
 * **Telnet Console**: Port `23` (Password: `oobmadm123`)
+
+---
+
+## 7. Security Architecture & Threat Modeling
+
+For hardware threat models (voltage glitching, UART readout), wireless isolation, and production hardening procedures, refer to the dedicated [`docs/security.md`](security.md) guide.
