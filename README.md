@@ -3,6 +3,7 @@
 [![PlatformIO Build](https://img.shields.io/badge/PlatformIO-ESP32--PICO--D4-orange.svg)](https://platformio.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Firmware Version](https://img.shields.io/badge/Version-v1.0.1-emerald.svg)](software/include/Config.h)
+[![Web Installer](https://img.shields.io/badge/Web_Installer-One--Click_Flash-teal.svg)](https://stanoba.github.io/ESP-OOBM/webflasher/)
 [![Schematic](https://img.shields.io/badge/Hardware-Schematic%20(SVG)-teal.svg)](assets/schematic.svg)
 
 Open-source wireless Out-of-Band (OOB) serial console bridge for **ESP32-PICO-D4 USB Key (ESP32 KEY V1.0)** with **CH343P USB-to-UART bridge**.
@@ -65,32 +66,42 @@ flowchart LR
 
 ---
 
-## Quick Start: Build & Flash
+## Quick Start: Installation & Flashing
 
-### 1. Compile Firmware
+### Option A: One-Click Web Installer (No Software Required)
+Plug your ESP-OOBM dongle into your computer and flash directly from Chrome, Edge, or Brave:
+👉 **[Open ESP-OOBM Web Installer](https://stanoba.github.io/ESP-OOBM/webflasher/)**
+
+---
+
+### Option B: Build & Flash via PlatformIO / CLI
+
+#### 1. Compile Firmware
 ```powershell
 cd software
 pio run -e esp32_pico_d4
 ```
 
-### 2. Flash via USB
+#### 2. Flash via USB
 ```powershell
 pio run -e esp32_pico_d4 -t upload
 ```
 
-### 3. Factory Reset (If Access Lost)
+#### 3. Factory Reset (If Access Lost)
 ```powershell
 # Erase all flash memory and re-upload default firmware
 pio run -e esp32_pico_d4 -t erase
 pio run -e esp32_pico_d4 -t upload
 ```
 
-### 4. Run Unit Tests (optional, no hardware)
+#### 4. Run Unit Tests (optional, no hardware)
 ```powershell
 pio test -e native
 ```
 
-### 5. Initial Connection
+---
+
+### Initial Connection & Access
 1. **Wi-Fi Mode**: Connect to **`ESP-OOBM-XXXXXX`** (Password: **`oobmadm123`**), open **`http://192.168.4.1/`** (User: **`admin`**, Pass: **`oobmadm123`**).
 
 ---

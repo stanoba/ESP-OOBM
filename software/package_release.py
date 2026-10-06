@@ -88,6 +88,30 @@ def main():
         res = subprocess.run(merge_cmd, capture_output=True, text=True)
         if res.returncode == 0:
             print(f"Created Factory binary: {os.path.basename(factory_dest)}")
+            # Also copy to webflasher/firmware for GitHub Pages Web Installer
+            webflasher_dir = os.path.join(os.path.dirname(script_dir), "webflasher")
+            webflasher_fw = os.path.join(webflasher_dir, "firmware", "esp-oobm-factory-0x0.bin")
+            webflasher_ota = os.path.join(webflasher_dir, "firmware", "esp-oobm-firmware.bin")
+            if os.path.exists(webflasher_dir):
+                os.makedirs(os.path.dirname(webflasher_fw), exist_ok=True)
+                shutil.copyfile(factory_dest, webflasher_fw)
+                shutil.copyfile(ota_dest, webflasher_ota)
+                print(f"Updated Web Flasher factory binary: {webflasher_fw}")
+                print(f"Updated Web Flasher OTA binary: {webflasher_ota}")
+                
+                # Update manifest.json version
+                manifest_path = os.path.join(webflasher_dir, "manifest.json")
+                if os.path.exists(manifest_path):
+                    import json
+                    try:
+                        with open(manifest_path, "r", encoding="utf-8") as mf:
+                            mdata = json.load(mf)
+                        mdata["version"] = version
+                        with open(manifest_path, "w", encoding="utf-8") as mf:
+                            json.dump(mdata, mf, indent=2)
+                        print(f"Updated Web Flasher manifest version to: {version}")
+                    except Exception as e:
+                        print(f"Warning: Failed to update manifest.json: {e}")
         else:
             print(f"Warning: merge-bin failed: {res.stderr}")
     else:
