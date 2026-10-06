@@ -9,6 +9,8 @@ Open-source wireless Out-of-Band (OOB) serial console bridge for **ESP32-PICO-D4
 
 Plug into any router, switch, firewall, or server USB port for emergency root console access over Wi-Fi (WebTerminal / Telnet).
 
+![ESP-OOBM WebTerminal Console](assets/ui-terminal-light.png)
+
 ---
 
 ## Hardware Overview
