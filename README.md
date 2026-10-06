@@ -114,7 +114,7 @@ pio test -e native
 
 ESP-OOBM features an interactive web console with 16-color ANSI terminal emulation, touch macro keys (`ESC`, `TAB`, `Ctrl+C`, `Ctrl+Z`, `Ctrl+D`), and instant command presets for RouterOS, Linux, Cisco IOS, and pfSense.
 
-![WebTerminal Console (Light Theme)](assets/ui-terminal-light.png)
+![WebTerminal Console (Light Theme)](assets/ui-dashboard-light.png)
 
 > [!TIP]
 > For complete dashboard screenshots, dark mode preview, and mobile usage guides, see [`docs/ui-guide.md`](docs/ui-guide.md).
