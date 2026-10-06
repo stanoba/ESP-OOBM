@@ -55,12 +55,31 @@ ESP-OOBM is built on the **ESP32-PICO-D4** System-in-Package (SiP), which integr
 * **Zero Bluetooth Footprint**: The Bluetooth/BLE controller and stack are **completely disabled and excluded from compilation**. This completely eliminates exposure to known ESP32 Bluetooth vulnerabilities such as **BrakTooth** (CVE-2021-28139) and **SweynTooth**.
 * **Station Mode Security**: When connecting to an upstream infrastructure network, ESP-OOBM supports WPA2-PSK with DHCP or static IP configuration.
 
-### B. Web Management & WebSocket Security
+### B. Plaintext Network Traffic & Lack of TLS (Cleartext Risk)
+
+> [!WARNING]
+> **ESP-OOBM does NOT implement TLS/HTTPS (`https://`, `wss://`, or SSH/TLS-wrapped Telnet)**. All web traffic (Port 80), WebSocket terminal streams (Port 81), and Telnet connections (Port 23) operate in **unencrypted plaintext** at the application layer.
+
+#### Why TLS is Excluded by Design:
+1. **Memory Conservation**: Maintaining TLS sessions (RSA/ECDSA handshakes, cryptographic buffers) consumes 35–50 KB of dynamic heap memory per client on the ESP32, severely impacting stability and concurrent sessions.
+2. **Ultra-Low Latency Streaming**: Unencrypted WebSocket packets ensure instantaneous, zero-overhead byte forwarding between UART0 and the browser console.
+3. **Air-Gapped & Offline Usability**: Eliminates SSL/TLS certificate validation failures, expired CA trust stores, and domain name dependencies when operating completely offline in standalone AP mode (`192.168.4.1`).
+
+#### Threat Vectors & Eavesdropping Risks:
+* **Credential & Password Sniffing**: Login passwords, HTTP basic authentication headers, session cookies, and Telnet authentication passwords travel across the network in cleartext.
+* **Console Session Interception**: Keystrokes, router configuration commands, root credentials entered into the target serial console, and router outputs can be captured by anyone with packet sniffing capabilities on the same Layer-2 broadcast domain (e.g. via ARP spoofing, promiscuous mode, or port mirroring).
+
+#### Mandatory Network Hardening:
+* **Direct AP Mode (Recommended for Emergency Access)**: When connecting directly to the dongle's Wi-Fi Access Point (`ESP-OOBM-XXXXXX`), the entire wireless link is fully encrypted at Layer 2 via **WPA2-PSK (AES-CCMP)**, protecting passwords from over-the-air sniffing.
+* **Station Mode on Dedicated OOB VLANs Only**: If connecting ESP-OOBM to an upstream network in Station Mode, place it strictly on an **isolated Out-of-Band Management VLAN** with Layer-2 isolation (Private VLAN / Client Isolation). **Never connect ESP-OOBM to a shared user network or public subnet**.
+* **Remote Access via Encrypted VPN**: Never forward Ports 80, 81, or 23 directly to the internet. Remote administrators must connect through an encrypted VPN tunnel (WireGuard, IPsec, OpenVPN) or an SSH bastion host before accessing the OOBM web portal.
+
+### C. Web Management & WebSocket Security
 * **Authentication**: All endpoints (`/`, `/terminal`, `/settings`, `/wifi`, `/api/*`) require authentication.
 * **Session Management**: Authenticated requests use session cookies with randomized session tokens and activity timeouts.
 * **Brute-Force Resistance**: Authentication attempts validate against salted hashes in NVS.
 
-### C. Telnet Daemon (Port 23)
+### D. Telnet Daemon (Port 23)
 * **RFC 854 Protocol**: Standard Telnet does not encrypt traffic in transit.
 * **Access Control**: Telnet requires password authentication upon connection before dropping into the serial bridge.
 * **Operational Recommendation**: Use Telnet only over the direct, encrypted WPA2 Wi-Fi AP connection or an isolated management VLAN. For public or shared networks, use the WebTerminal via browser.
