@@ -363,6 +363,50 @@ void WebPortal::registerHttpRoutes() {
         renderUpdatePage(res);
     });
 
+    _server.on("/update", HTTP_POST,
+        [this]() {
+            if (!isAuthenticated()) {
+                _server.send(401, "text/plain", "Unauthorized");
+                return;
+            }
+            bool success = !Update.hasError();
+            _server.sendHeader("Connection", "close");
+            if (success) {
+                _server.send(200, "text/plain", "OK");
+                logger.logInfo("OTA Web Update successful! Rebooting ESP32 into new firmware...");
+                delay(800);
+                ESP.restart();
+            } else {
+                _server.send(500, "text/plain", "Flash failed or verification error");
+            }
+        },
+        [this]() {
+            if (!isAuthenticated()) {
+                return;
+            }
+            HTTPUpload& upload = _server.upload();
+            if (upload.status == UPLOAD_FILE_START) {
+                logger.logInfo("OTA Web Update started: %s", upload.filename.c_str());
+                if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
+                    Update.printError(Serial);
+                }
+            } else if (upload.status == UPLOAD_FILE_WRITE) {
+                if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+                    Update.printError(Serial);
+                }
+            } else if (upload.status == UPLOAD_FILE_END) {
+                if (Update.end(true)) {
+                    logger.logInfo("OTA Web Update written: %u bytes.", upload.totalSize);
+                } else {
+                    Update.printError(Serial);
+                }
+            } else if (upload.status == UPLOAD_FILE_ABORTED) {
+                Update.end();
+                logger.logWarn("OTA Web Update aborted.");
+            }
+        }
+    );
+
     _server.on("/metrics", HTTP_GET, [this]() {
         WebServerResponseWriter res(_server);
         renderMetrics(res);
