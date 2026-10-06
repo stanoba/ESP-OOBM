@@ -128,15 +128,18 @@ ESP-OOBM features an interactive web console with 16-color ANSI terminal emulati
 # 1. Verify USB serial port detection
 /port print
 
-# 2. Set global default console terminal to xterm (persists across reboots/USB hot-plugs)
-/system console settings set default-term=xterm
+# 2. View active console configuration
+/system console print detail
 
-# 3. Redirect root console to USB dongle with full xterm ANSI color support (115200 baud)
+# 3. Set terminal emulation to xterm on all console ports
+/system console set [find] term=xterm
+
+# 4. (Optional) Redirect root console to USB dongle if not attached automatically
 /system console add port=usb1 channel=0 term=xterm disabled=no
 ```
 
 > [!NOTE]
-> When logging in via serial/telnet, append `+c` to your username (e.g. `admin+c`) to force color syntax highlighting in RouterOS CLI.
+> When logging in via serial/telnet, append `+c` to your username (e.g. `admin+c`) to enable color syntax highlighting in RouterOS CLI.
 
 ### Linux / OpenWrt / Debian / Ubuntu (`systemd`)
 ```bash

@@ -67,7 +67,7 @@ html:not(.light) .brand-sub{fill:#2dd4bf!important;}
 .grid-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:24px;}
 .card, .table-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px 20px;box-shadow:0 4px 12px rgba(0,0,0,0.06);position:relative;margin-bottom:20px;}
 .card h3, .table-card h3{margin:0 0 12px 0;font-size:0.92rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);font-weight:700;display:flex;align-items:center;justify-content:space-between;}
-.card .val{font-size:1.85rem;font-weight:700;font-family:Consolas,monospace;color:var(--text);line-height:1.2;}
+.card .val{font-size:1.55rem;font-weight:700;font-family:Consolas,Menlo,Monaco,monospace;color:var(--text);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .card .val.val-accent{color:var(--navy);}
 .card .val.val-green{color:var(--green);}
 .card .sub{font-size:0.84rem;color:var(--muted);margin-top:6px;font-weight:500;}
@@ -656,7 +656,7 @@ void WebPortal::renderRoot(ResponseWriter &res) {
     card2 += "    <div style=\"margin-top:14px;\">\n";
     card2 += "      <div class=\"stat-row\"><span class=\"stat-label\">TX Bytes Sent</span><span class=\"stat-val\" id=\"tx_bytes_val\">" + String(txBuf) + "</span></div>\n";
     card2 += "      <div class=\"stat-row\"><span class=\"stat-label\">RX Overflows</span><span class=\"stat-val\" id=\"overflow_val\">" + String(stats.serialRxOverflow) + "</span></div>\n";
-    card2 += "      <div class=\"stat-row\"><span class=\"stat-label\">Active Sessions</span><span class=\"stat-val\" id=\"sessions_val\">WS: " + String(stats.activeWsClients) + " | Telnet: " + String(stats.activeTelnetClients) + "</span></div>\n";
+    card2 += "      <div class=\"stat-row\"><span class=\"stat-label\">Sessions</span><span class=\"stat-val\" id=\"sessions_val\">WS: " + String(stats.activeWsClients) + " | Telnet: " + String(stats.activeTelnetClients) + "</span></div>\n";
     card2 += "    </div>\n";
     card2 += "  </div>\n";
     res.sendChunk(card2);
@@ -681,7 +681,7 @@ void WebPortal::renderRoot(ResponseWriter &res) {
     card4.reserve(600);
     card4 += "  <div class=\"card\">\n";
     card4 += "    <h3>Time &amp; Clock</h3>\n";
-    card4 += "    <div class=\"val\" id=\"time_val\" style=\"font-size:1.6rem;letter-spacing:-0.02em;\">" + String(timeBuf) + "</div>\n";
+    card4 += "    <div class=\"val\" id=\"time_val\" style=\"font-size:1.45rem;letter-spacing:-0.01em;\">" + String(timeBuf) + "</div>\n";
     card4 += "    <div class=\"sub\" id=\"tz_val\">TZ: " + tzCity + "</div>\n";
     card4 += "    <div style=\"margin-top:14px;\">\n";
     card4 += "      <div class=\"stat-row\"><span class=\"stat-label\">NTP Status</span><span class=\"stat-val\"><span id=\"ntp_badge\" class=\"badge " + String(stats.ntpSynced ? "badge-ok\">Synced (OK)" : "badge-warn\">Waiting for sync") + "</span></span></div>\n";
@@ -889,10 +889,10 @@ void WebPortal::renderTerminal(ResponseWriter &res) {
         "      if(code===27){ this.state=1; }\n"
         "      else if(code===13){ this.cursorCol=0; }\n"
         "      else if(code===10){\n"
-        "        this.cursorRow=this.lines.length-1;\n"
-        "        this.lines.push([]);\n"
-        "        this.cursorRow=this.lines.length-1;\n"
-        "        this.cursorCol=0;\n"
+        "        this.cursorRow++;\n"
+        "        if(this.cursorRow>=this.lines.length){\n"
+        "          this.lines.push([]);\n"
+        "        }\n"
         "        if(this.lines.length>this.maxLines){\n"
         "          this.lines.shift();\n"
         "          this.cursorRow=Math.max(0,this.lines.length-1);\n"
@@ -949,7 +949,7 @@ void WebPortal::renderTerminal(ResponseWriter &res) {
         "      else if(v===22){ this.bold=false; }\n"
         "      else if(v===24){ this.underline=false; }\n"
         "      else if(v===27){ this.inverse=false; }\n"
-        "      else if(v>=30&&v<=37){ this.fg=getAnsiColor(v-30); }\n"
+        "      else if(v>=30&&v<=37){ this.fg=getAnsiColor(v-30 + (this.bold?8:0)); }\n"
         "      else if(v===39){ this.fg=null; }\n"
         "      else if(v>=40&&v<=47){ this.bg=getAnsiColor(v-40); }\n"
         "      else if(v===49){ this.bg=null; }\n"
@@ -977,8 +977,8 @@ void WebPortal::renderTerminal(ResponseWriter &res) {
         "  }else if(cmd==='J'){\n"
         "    var m=p[0]||0;\n"
         "    if(m===2||m===3){\n"
-        "      this.lines.push([]);\n"
-        "      this.cursorRow=this.lines.length-1;\n"
+        "      this.lines=[[]];\n"
+        "      this.cursorRow=0;\n"
         "      this.cursorCol=0;\n"
         "    }else if(m===0){\n"
         "      while(this.lines.length<=this.cursorRow) this.lines.push([]);\n"
@@ -996,15 +996,35 @@ void WebPortal::renderTerminal(ResponseWriter &res) {
         "  }else if(cmd==='G'||cmd==='`'){\n"
         "    this.cursorCol=Math.max(0,(p[0]||1)-1);\n"
         "  }else if(cmd==='H'||cmd==='f'){\n"
-        "    var c=p[1];\n"
-        "    if(c!==undefined){\n"
-        "      this.cursorCol=Math.max(0,c-1);\n"
-        "    }else{\n"
-        "      this.cursorCol=0;\n"
-        "    }\n"
+        "    var r=(p[0]!==undefined&&!isNaN(p[0]))?p[0]:1;\n"
+        "    var c=(p[1]!==undefined&&!isNaN(p[1]))?p[1]:1;\n"
+        "    this.cursorRow=Math.max(0,r-1);\n"
+        "    while(this.lines.length<=this.cursorRow) this.lines.push([]);\n"
+        "    this.cursorCol=Math.max(0,c-1);\n"
         "  }else if(cmd==='c'){\n"
         "    if(ws&&ws.readyState===1){\n"
-        "      ws.send(new TextEncoder().encode('\\x1b[?1;2c'));\n"
+        "      if(this.csiParamStr.indexOf('>')>=0){\n"
+        "        ws.send(new TextEncoder().encode('\\x1b[>0;10;0c'));\n"
+        "      }else{\n"
+        "        ws.send(new TextEncoder().encode('\\x1b[?1;2c'));\n"
+        "      }\n"
+        "    }\n"
+        "  }else if(cmd==='n'){\n"
+        "    var q=p[0]||0;\n"
+        "    if(ws&&ws.readyState===1){\n"
+        "      if(q===6){\n"
+        "        var r=this.cursorRow+1, c=this.cursorCol+1;\n"
+        "        ws.send(new TextEncoder().encode('\\x1b[' + r + ';' + c + 'R'));\n"
+        "      }else if(q===5){\n"
+        "        ws.send(new TextEncoder().encode('\\x1b[0n'));\n"
+        "      }\n"
+        "    }\n"
+        "  }else if(cmd==='t'){\n"
+        "    var q=p[0]||0;\n"
+        "    if(ws&&ws.readyState===1){\n"
+        "      if(q===18){\n"
+        "        ws.send(new TextEncoder().encode('\\x1b[8;24;80t'));\n"
+        "      }\n"
         "    }\n"
         "  }\n"
         "};\n"

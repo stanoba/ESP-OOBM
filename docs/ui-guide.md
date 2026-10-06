@@ -36,9 +36,9 @@ Real-time telemetry showing dual-core 240 MHz CPU status, free heap memory, UART
 
 Form-based login dialog with animated focus outlines and theme toggle:
 
-<p align="center">
-  <img src="../assets/ui-login-dark.png" alt="Sign In Dark" width="380">
-</p>
+| Dark Theme | Light Theme |
+| :---: | :---: |
+| [![Login Dark](../assets/ui-login-dark.png)](../assets/ui-login-dark.png) | [![Login Light](../assets/ui-login-light.png)](../assets/ui-login-light.png) |
 
 ---
 
